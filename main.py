@@ -17,7 +17,6 @@ async def redis_set(key, value, ex=300):
             params={"ex": ex}
         )
 
-Import os
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "8789355308:AAGMtNUPG2nuxz7W-P8FGFXEG5yKIhOCjCI")
 
 bot = Bot(token=BOT_TOKEN)
