@@ -3,7 +3,7 @@ from telethon import TelegramClient
 from telethon.errors import SessionPasswordNeededError
 import os
 
-Import os
+import os
 API_ID = int(os.environ.get("API_ID", "30205421"))
 API_HASH = os.environ.get("API_HASH", "410de2c0ba6d0915000a16961cea2229")
 
