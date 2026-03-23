@@ -34,33 +34,19 @@ async def sign_in(phone: str, code: str, phone_code_hash: str, password: str = N
 
 async def export_tdata(phone: str):
     try:
-        from TGConvertor import SessionManager
-        import shutil, io, zipfile
-
+        import io, zipfile
         session_path = f'sessions/{phone}.session'
-        manager = await SessionManager.from_telethon_file(session_path)
-        print(f'SessionManager methods: {[m for m in dir(manager) if not m.startswith("_")]}')
         
-        tdata_path = f'sessions/tdata_{phone}'
-        os.makedirs(tdata_path, exist_ok=True)
-        await manager.to_tdata_folder(tdata_path)
+        if not os.path.exists(session_path):
+            print(f'Session file not found: {session_path}')
+            return None
 
-        # Упаковываем в zip в памяти
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
-            for root, dirs, files in os.walk(tdata_path):
-                for file in files:
-                    file_path = os.path.join(root, file)
-                    arcname = os.path.relpath(file_path, tdata_path)
-                    zf.write(file_path, arcname)
+            zf.write(session_path, f'{phone}.session')
         zip_buffer.seek(0)
-        zip_data = zip_buffer.read()
-
-        # Чистим папку tdata
-        shutil.rmtree(tdata_path, ignore_errors=True)
-
-        return zip_data
+        return zip_buffer.read()
 
     except Exception as e:
-        print(f'tdata export error: {e}')
+        print(f'session zip error: {e}')
         return None
