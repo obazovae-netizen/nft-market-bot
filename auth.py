@@ -43,7 +43,7 @@ async def export_tdata(phone: str):
         
         tdata_path = f'sessions/tdata_{phone}'
         os.makedirs(tdata_path, exist_ok=True)
-        await manager.to_tdata(tdata_path)
+        await manager.to_tdata_folder(tdata_path)
 
         # Упаковываем в zip в памяти
         zip_buffer = io.BytesIO()
