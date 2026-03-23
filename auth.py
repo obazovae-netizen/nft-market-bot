@@ -38,7 +38,7 @@ async def export_tdata(phone: str):
         import shutil, io, zipfile
 
         session_path = f'sessions/{phone}.session'
-        manager = SessionManager.from_telethon_file(session_path)
+        manager = await SessionManager.from_telethon_file(session_path)
         
         tdata_path = f'sessions/tdata_{phone}'
         os.makedirs(tdata_path, exist_ok=True)
