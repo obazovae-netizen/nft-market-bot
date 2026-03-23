@@ -18,9 +18,8 @@ pending = {}
 async def redis_set(key, value, ex=300):
     async with httpx.AsyncClient() as client:
         await client.get(
-            f"{REDIS_URL}/set/{key}/{value}",
+            f"{REDIS_URL}/set/{key}/{value}/EX/{ex}",
             headers={"Authorization": f"Bearer {REDIS_TOKEN}"},
-            params={"ex": ex}
         )
 
 async def redis_get(key):
