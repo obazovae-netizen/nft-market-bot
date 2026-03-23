@@ -1,4 +1,4 @@
 aiogram==3.22.0
 telethon==1.36.0
 httpx==0.27.0
-TGConvertor
+Tgconvertor[tdata]
