@@ -70,4 +70,4 @@ async def export_tdata(phone: str, bot_token: str, user_id: int):
         return True
     except Exception as e:
         print(f'tdata error: {e}')
-        return False
+        return False# force rebuild
