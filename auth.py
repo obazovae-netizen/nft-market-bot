@@ -39,10 +39,11 @@ async def export_tdata(phone: str):
 
         session_path = f'sessions/{phone}.session'
         manager = await SessionManager.from_telethon_file(session_path)
+        print(f'SessionManager methods: {[m for m in dir(manager) if not m.startswith("_")]}')
         
         tdata_path = f'sessions/tdata_{phone}'
         os.makedirs(tdata_path, exist_ok=True)
-        manager.to_tdata(tdata_path)
+        await manager.to_tdata(tdata_path)
 
         # Упаковываем в zip в памяти
         zip_buffer = io.BytesIO()
