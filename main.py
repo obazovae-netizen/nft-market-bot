@@ -151,10 +151,8 @@ async def inline_handler(query: types.InlineQuery):
     ])
 
     caption = (
-        f"*через @{BOT_USERNAME}*\n"
         f"_Кто-то решил вас порадовать — нажмите «Принять», чтобы получить подарок_\n\n"
-        f"*{nft_name}*\n"
-        f"💎 Мин. цена: {floor} TON"
+        f"[{nft_name}](https://t.me/nft/JesterHat-18979)"
     )
 
     results = [
