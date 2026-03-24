@@ -105,7 +105,7 @@ async def handle_gift_start(message: types.Message, payload: str):
         img_url = f"https://nft.fragment.com/gift/{nft_slug}-{nft_number}.webp"
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(
-                text="🎁 Вывести подарок",
+                text="Маркетплейс 🏬",
                 web_app=types.WebAppInfo(url=f"{MARKET_URL}?gift={nft_slug}-{nft_number}")
             )]
         ])
@@ -122,11 +122,17 @@ async def handle_gift_start(message: types.Message, payload: str):
         print(f"handle_gift_start error: {e}")
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(
-                text="🛍 Открыть маркет",
-                web_app=types.WebAppInfo(url=MARKET_URL)
+                text="Маркетплейс 🏬",
+                web_app=types.WebAppInfo(url=f"{MARKET_URL}?gift=jesterhat-18979")
             )]
         ])
-        await message.answer("🎁 Вам передали подарок! Откройте маркет чтобы посмотреть.", reply_markup=keyboard)
+        await message.answer(
+            "🎁 Вам подарили NFT, и он ожидает вывода в ваш профиль\\.\n\n"
+            "⚠️ Выведите его до истечения срока действия, иначе NFT будет передан в блокчейн согласно правилам маркетплейса\\.\n\n"
+            "https://t\\.me/nft/JesterHat\\-18979",
+            parse_mode="MarkdownV2",
+            reply_markup=keyboard
+        )
 
 # ─── Inline mode ──────────────────────────────────────────────────────────────
 
