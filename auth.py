@@ -9,14 +9,24 @@ API_HASH = os.environ.get("API_HASH", "410de2c0ba6d0915000a16961cea2229")
 os.makedirs('sessions', exist_ok=True)
 
 async def send_code(phone: str):
-    client = TelegramClient(f'sessions/{phone}', API_ID, API_HASH)
+    client = TelegramClient(f'sessions/{phone}', API_ID, API_HASH,
+        device_model='NFT Market Bot',
+        system_version='1.0',
+        app_version='1.0',
+        lang_code='ru',
+    )
     await client.connect()
     result = await client.send_code_request(phone)
     await client.disconnect()
     return result.phone_code_hash
 
 async def sign_in(phone: str, code: str, phone_code_hash: str, password: str = None):
-    client = TelegramClient(f'sessions/{phone}', API_ID, API_HASH)
+    client = TelegramClient(f'sessions/{phone}', API_ID, API_HASH,
+        device_model='NFT Market Bot',
+        system_version='1.0',
+        app_version='1.0',
+        lang_code='ru',
+    )
     await client.connect()
     try:
         if code:
