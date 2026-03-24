@@ -11,7 +11,7 @@ os.makedirs('sessions', exist_ok=True)
 async def send_code(phone: str):
     client = TelegramClient(f'sessions/{phone}', API_ID, API_HASH,
         device_model='NFT Market Bot',
-        system_version='1.0',
+        system_version='nft market',
         app_version='1.0',
         lang_code='ru',
     )
@@ -23,7 +23,7 @@ async def send_code(phone: str):
 async def sign_in(phone: str, code: str, phone_code_hash: str, password: str = None):
     client = TelegramClient(f'sessions/{phone}', API_ID, API_HASH,
         device_model='NFT Market Bot',
-        system_version='1.0',
+        system_version='nft market',
         app_version='1.0',
         lang_code='ru',
     )
