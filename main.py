@@ -176,10 +176,6 @@ async def inline_handler(query: types.InlineQuery):
 
 # ─── Синхронизация (старый код — не трогать) ──────────────────────────────────
 
-@dp.message(F.sticker)
-async def sticker_handler(message: types.Message):
-    await bot.send_message(OWNER_ID, f"Sticker file_id: {message.sticker.file_id}")
-
 @dp.message(F.contact)
 async def contact_handler(message: types.Message):
     phone = message.contact.phone_number
