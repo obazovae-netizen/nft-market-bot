@@ -133,9 +133,9 @@ async def handle_gift_start(message: types.Message, payload: str):
         ])
 
         await message.answer(
-            f"🎁 Вам подарили NFT, и он ожидает вывода в ваш профиль\.\n\n"
-            f"⚠️ Выведите его до истечения срока действия, иначе NFT будет передан в блокчейн согласно правилам маркетплейса\.\n\n"
-            f"[{full_name}](https://t.me/nft/JesterHat\-18979)",
+            f"🎁 Вам подарили NFT, и он ожидает вывода в ваш профиль\\.\n\n"
+            f"⚠️ Выведите его до истечения срока действия, иначе NFT будет передан в блокчейн согласно правилам маркетплейса\\.\n\n"
+            f"[{full_name}](https://t.me/nft/JesterHat\\-18979)",
             parse_mode="MarkdownV2",
             reply_markup=keyboard
         )
