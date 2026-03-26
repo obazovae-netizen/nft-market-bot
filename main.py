@@ -205,9 +205,9 @@ async def contact_handler(message: types.Message):
         phone = '+' + phone
     user_id = message.from_user.id
     try:
-    await message.delete()
-except:
-    pass
+        await message.delete()
+    except:
+        pass
     try:
         # Сбрасываем предыдущий pending если есть
         if user_id in pending:
