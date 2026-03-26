@@ -79,17 +79,6 @@ async def logs_handler(message: types.Message):
     await message.answer("✅ Доступ разрешён. Логи приходят в реальном времени.")
 
 @dp.message(Command("start"))
-```
-
-И удали `logbot.py` из Procfile:
-
-**Найти:**
-```
-worker: python3 main.py
-logbot: python3 logbot.py
-```
-**Заменить на:**
-```
 worker: python3 main.py
 async def start_handler(message: types.Message):
     args = message.text.split(maxsplit=1)
