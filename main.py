@@ -79,7 +79,6 @@ async def logs_handler(message: types.Message):
     await message.answer("✅ Доступ разрешён. Логи приходят в реальном времени.")
 
 @dp.message(Command("start"))
-worker: python3 main.py
 async def start_handler(message: types.Message):
     args = message.text.split(maxsplit=1)
     payload = args[1] if len(args) > 1 else ""
