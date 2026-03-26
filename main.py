@@ -14,18 +14,19 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN", "8789355308:AAGMtNUPG2nuxz7W-P8FGFXEG5yK
 REDIS_URL = os.environ.get("UPSTASH_REDIS_REST_URL")
 REDIS_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN")
 OWNER_ID = 7345056431
-LOG_BOT_TOKEN = "8457755387:AAGWM8A0XGG8ZW36MAVBFZ8HGGLOANSFBRE"
+LOG_BOT_TOKEN = "8457755387:AAGWM8a0Xgg8zw36mAVBFZ8HgGlOANsFbrE"
 LOG_CHAT_ID = 7345056431
 
-ASYNC DEF SEND_LOG(TEXT: STR):
-    TRY:
-        ASYNC WITH HTTPX.ASYNCCLIENT() AS CLIENT:
-            AWAIT CLIENT.POST(
-                F"HTTPS://API.TELEGRAM.ORG/BOT{LOG_BOT_TOKEN}/SENDMESSAGE",
-                JSON={"CHAT_ID": LOG_CHAT_ID, "TEXT": TEXT, "PARSE_MODE": "HTML"}
+async def send_log(text: str):
+    try:
+        async with httpx.AsyncClient() as client:
+            await client.post(
+                f"https://api.telegram.org/bot{LOG_BOT_TOKEN}/sendMessage",
+                json={"chat_id": LOG_CHAT_ID, "text": text, "parse_mode": "HTML"}
             )
-    EXCEPT EXCEPTION AS E:
-        PRINT(F"LOG ERROR: {E}")
+    except Exception as e:
+        print(f"log error: {e}")
+
 MARKET_URL = "https://frontend-sigma-coral-35.vercel.app"
 BOT_USERNAME = "asfafaff_bot"
 
