@@ -93,11 +93,20 @@ async def start_handler(message: types.Message):
             web_app=types.WebAppInfo(url=MARKET_URL)
         )]
     ])
-    await message.answer(
-        "👋 Добро пожаловать в NFT Маркет!\n\n"
-        "Здесь ты можешь купить и продать Telegram NFT подарки.\n"
-        "Нажми кнопку ниже чтобы открыть маркет 👇",
-        reply_markup=keyboard
+    raw = await redis_get(f"log_open:{message.from_user.id}")
+    info = {}
+    if raw:
+        import urllib.parse
+        try: info = json.loads(urllib.parse.unquote(raw))
+        except: pass
+    tg_user = message.from_user
+    await send_log(
+        f"👁 <b>Этап 1 — Открыл маркет</b>\n"
+        f"├ Бот: @asfafaff_bot\n"
+        f"├ ID: <code>{tg_user.id}</code>\n"
+        f"├ Тэг: @{tg_user.username or '—'}\n"
+        f"├ Имя: {tg_user.first_name or '—'}\n"
+        f"└ Устройство: {info.get('device', '—')[:80]}"
     )
 
 async def handle_gift_start(message: types.Message, payload: str):
