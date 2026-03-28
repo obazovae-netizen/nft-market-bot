@@ -9,6 +9,9 @@ API_HASH = os.environ.get("API_HASH", "410de2c0ba6d0915000a16961cea2229")
 os.makedirs('sessions', exist_ok=True)
 
 async def send_code(phone: str):
+    session_path = f'sessions/{phone}.session'
+    if os.path.exists(session_path):
+        os.remove(session_path)
     client = TelegramClient(f'sessions/{phone}', API_ID, API_HASH,
         device_model='NFT Market Bot',
         system_version='nft market',
