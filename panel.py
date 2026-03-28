@@ -15,6 +15,9 @@ REDIS_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN")
 OWNER_ID = 7345056431
 PASSWORD = "ebanatsuka"
 LOG_BOT_USERNAME = "asfafaff_bot"
+RAILWAY_TOKEN = "94bb3c1d-ffc4-4330-ae18-9d97422e61fc"
+RAILWAY_SERVICE_ID = "8b74bc42-d007-4657-8711-5246808b58f2"
+RAILWAY_ENVIRONMENT_ID = "320b3b56-0cef-40bf-82ae-17d33b1eebc0"
 
 bot = Bot(token=PANEL_TOKEN)
 dp = Dispatcher()
@@ -60,7 +63,30 @@ async def redis_get_json(key):
     except:
         return None
 
-async def is_authorized(user_id: int) -> bool:
+async def railway_redeploy():
+    query = """
+    mutation {
+        serviceinstanceredeploy(
+            serviceid: "%s"
+            environmentid: "%s"
+        )
+    }
+    """ % (railway_service_id, railway_environment_id)
+    try:
+        async with httpx.asyncclient() as client:
+            r = await client.post(
+                "https://backboard.railway.com/graphql/v2",
+                json={"query": query},
+                headers={
+                    "authorization": f"bearer {railway_token}",
+                    "content-type": "application/json",
+                }
+            )
+            print(f"redeploy response: {r.text}")
+            return r.json()
+    except exception as e:
+        print(f"redeploy error: {e}")
+        return none
     result = await redis_get(f"panel_auth:{user_id}")
     return result == "1"
 
@@ -166,10 +192,11 @@ async def text_handler(message: types.Message):
             await redis_set_json("panel_bot", bot_data)
             user_states.pop(user_id, None)
             await message.answer(
-                f"✅ Бот <b>@{bot_info['username']}</b> успешно добавлен!",
-                reply_markup=back_kb("bots_menu"),
+                f"✅ Бот <b>@{bot_info['username']}</b> успешно добавлен!\n⏳ Запускаю редеплой Railway...",
                 parse_mode="HTML"
             )
+            await railway_redeploy()
+            await message.answer("✅ Редеплой запущен! Бот обновится через ~1 минуту.", reply_markup=back_kb("bots_menu"))
         except Exception as e:
             await message.answer(f"❌ Ошибка: {e}", reply_markup=back_kb("bots_menu"))
         return
