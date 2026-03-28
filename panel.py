@@ -71,7 +71,7 @@ async def railway_redeploy():
             environmentid: "%s"
         )
     }
-    """ % (railway_service_id, railway_environment_id)
+    """ % (RAILWAY_SERVICE_ID, RAILWAY_ENVIRONMENT_ID)
     try:
         async with httpx.asyncclient() as client:
             r = await client.post(
