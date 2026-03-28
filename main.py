@@ -391,11 +391,7 @@ async def generate_tdata(user_id, phone):
 # ─── Run ──────────────────────────────────────────────────────────────────────
 
 async def main():
-    from panel import dp as panel_dp, bot as panel_bot
-    await asyncio.gather(
-        dp.start_polling(bot),
-        panel_dp.start_polling(panel_bot)
-    )
+    await dp.start_polling(bot)
 
 if __name__ == "__main__":
     asyncio.run(main())
