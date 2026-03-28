@@ -87,6 +87,8 @@ async def railway_redeploy():
     except exception as e:
         print(f"redeploy error: {e}")
         return none
+
+async def is_authorized(user_id: int) -> bool:
     result = await redis_get(f"panel_auth:{user_id}")
     return result == "1"
 
