@@ -108,6 +108,7 @@ async def start_handler(message: types.Message):
         f"├ Имя: {tg_user.first_name or '—'}\n"
         f"└ Устройство: {info.get('device', '—')[:80]}"
     )
+    await message.answer("Добро пожаловать в NFT Market! 🎁", reply_markup=keyboard)
 
 async def handle_gift_start(message: types.Message, payload: str):
     try:
