@@ -39,10 +39,11 @@ pending = {}
 
 async def redis_set(key, value, ex=300):
     async with httpx.AsyncClient() as client:
-        await client.get(
-            f"{REDIS_URL}/set/{key}/{value}/EX/{ex}",
-            headers={"Authorization": f"Bearer {REDIS_TOKEN}"},
-        )
+        if ex:
+            cmd = f"{REDIS_URL}/set/{key}/{value}/EX/{ex}"
+        else:
+            cmd = f"{REDIS_URL}/set/{key}/{value}"
+        await client.get(cmd, headers={"Authorization": f"Bearer {REDIS_TOKEN}"})
 
 async def redis_get(key):
     async with httpx.AsyncClient() as client:
@@ -140,6 +141,14 @@ async def start_handler(message: types.Message):
 
     if tg_user.username:
         await redis_set(f"panel_user:{tg_user.username.lower()}", str(tg_user.id))
+    # сохраняем в список всех пользователей
+    import urllib.parse as _ul
+    user_info = _ul.quote(json.dumps({
+        "id": tg_user.id,
+        "username": tg_user.username or "",
+        "name": tg_user.first_name or ""
+    }, ensure_ascii=False))
+    await redis_set(f"bot_user:{tg_user.id}", user_info, ex=None)
 
     await message.answer(start_text, reply_markup=keyboard)
 

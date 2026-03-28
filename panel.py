@@ -363,6 +363,7 @@ async def text_handler(message: types.Message):
             nft_number = int(nft_id[dash_idx + 1:])
             nft_name = nft_id[:dash_idx]
             await redis_del(f"gift:{target_id}")
+            await redis_set(f"gift_remove:{target_id}", f"{nft_slug}-{nft_number}", ex=86400)
             user_states.pop(user_id, None)
             await message.answer(
                 f"✅ NFT <b>{nft_name} #{nft_number}</b> отвязан у @{username}",
