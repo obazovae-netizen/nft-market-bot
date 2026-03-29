@@ -291,13 +291,16 @@ async def text_handler(message: types.Message):
     # Ссылка кнопки 2
     if state == "awaiting_button2_url":
         url = message.text.strip()
+        print(f"DEBUG button2_url: state={state}, url={repr(url)}")
         if not url.startswith("http://") and not url.startswith("https://"):
             await message.answer("❌ Ссылка должна начинаться с http:// или https://\n\nОтправьте ссылку ещё раз:")
             return
         bot_data = await redis_get_json("panel_bot")
+        print(f"DEBUG button2_url: bot_data={bot_data}")
         if bot_data:
             bot_data["button2_url"] = url
             await redis_set_json("panel_bot", bot_data)
+            print(f"DEBUG button2_url: saved ok")
         user_states.pop(user_id, None)
         await message.answer("✅ Ссылка кнопки 2 обновлена!", reply_markup=back_kb("templates"))
         return
