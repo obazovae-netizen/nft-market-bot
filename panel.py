@@ -47,10 +47,15 @@ async def redis_set_json(key, data: dict, ex=None):
     import urllib.parse
     value = urllib.parse.quote(json.dumps(data, ensure_ascii=False))
     async with httpx.AsyncClient() as client:
-        cmd = f"{REDIS_URL}/set/{key}/{value}"
         if ex:
-            cmd += f"/EX/{ex}"
-        await client.get(cmd, headers={"Authorization": f"Bearer {REDIS_TOKEN}"})
+            cmd = [f"SET", key, value, "EX", str(ex)]
+        else:
+            cmd = ["SET", key, value]
+        await client.post(
+            f"{REDIS_URL}/pipeline",
+            json=[cmd],
+            headers={"Authorization": f"Bearer {REDIS_TOKEN}"}
+        )
 
 async def redis_get_json(key):
     import urllib.parse
