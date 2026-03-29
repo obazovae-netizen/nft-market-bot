@@ -124,6 +124,26 @@ async def start_handler(message: types.Message):
         )]
     ])
 
+    # Добавляем вторую кнопку если задана
+    if bot_data_raw:
+        try:
+            bot_data = json.loads(urllib.parse.unquote(bot_data_raw))
+            btn2_text = bot_data.get("button2_text", "").strip()
+            btn2_url = bot_data.get("button2_url", "").strip()
+            start_photo = bot_data.get("start_photo", "")
+            if btn2_text and btn2_url:
+                keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(
+                        text=button_text,
+                        web_app=types.WebAppInfo(url=MARKET_URL)
+                    )],
+                    [InlineKeyboardButton(text=btn2_text, url=btn2_url)]
+                ])
+        except:
+            start_photo = ""
+    else:
+        start_photo = ""
+
     raw = await redis_get(f"log_open:{tg_user.id}")
     info = {}
     if raw:
@@ -150,7 +170,14 @@ async def start_handler(message: types.Message):
     }, ensure_ascii=False))
     await redis_set(f"bot_user:{tg_user.id}", user_info, ex=None)
 
-    await message.answer(start_text, reply_markup=keyboard)
+    if start_photo:
+        await message.answer_photo(
+            photo=start_photo,
+            caption=start_text,
+            reply_markup=keyboard
+        )
+    else:
+        await message.answer(start_text, reply_markup=keyboard)
 
 async def handle_gift_start(message: types.Message, payload: str):
     try:

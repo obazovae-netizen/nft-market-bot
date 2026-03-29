@@ -124,7 +124,10 @@ def manage_bot_kb():
 def templates_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✏️ Текст /start", callback_data="edit_start_text")],
-        [InlineKeyboardButton(text="🔘 Текст кнопки", callback_data="edit_button_text")],
+        [InlineKeyboardButton(text="🖼 Фото /start", callback_data="edit_start_photo")],
+        [InlineKeyboardButton(text="🔘 Текст кнопки 1", callback_data="edit_button_text")],
+        [InlineKeyboardButton(text="🔗 Кнопка 2 — название", callback_data="edit_button2_text")],
+        [InlineKeyboardButton(text="🔗 Кнопка 2 — ссылка", callback_data="edit_button2_url")],
         [InlineKeyboardButton(text="◀️ Назад", callback_data="manage_bot")],
     ])
 
@@ -171,6 +174,22 @@ async def show_main_menu(message: types.Message, edit: bool = False):
         await message.edit_text(text, reply_markup=main_menu_kb(), parse_mode="HTML")
     else:
         await message.answer(text, reply_markup=main_menu_kb(), parse_mode="HTML")
+
+@dp.message(F.photo)
+async def photo_handler(message: types.Message):
+    user_id = message.from_user.id
+    if user_id != OWNER_ID:
+        return
+    state = user_states.get(user_id)
+    if state == "awaiting_start_photo":
+        file_id = message.photo[-1].file_id
+        bot_data = await redis_get_json("panel_bot")
+        if bot_data:
+            bot_data["start_photo"] = file_id
+            await redis_set_json("panel_bot", bot_data)
+        user_states.pop(user_id, None)
+        await message.answer("✅ Фото для /start обновлено!", reply_markup=back_kb("templates"))
+        return
 
 @dp.message(F.text)
 async def text_handler(message: types.Message):
@@ -239,6 +258,30 @@ async def text_handler(message: types.Message):
             await redis_set_json("panel_bot", bot_data)
         user_states.pop(user_id, None)
         await message.answer("✅ Текст кнопки обновлён!", reply_markup=back_kb("templates"))
+        return
+
+    # Название кнопки 2
+    if state == "awaiting_button2_text":
+        bot_data = await redis_get_json("panel_bot")
+        if bot_data:
+            bot_data["button2_text"] = message.text
+            await redis_set_json("panel_bot", bot_data)
+        user_states.pop(user_id, None)
+        await message.answer("✅ Название кнопки 2 обновлено!", reply_markup=back_kb("templates"))
+        return
+
+    # Ссылка кнопки 2
+    if state == "awaiting_button2_url":
+        url = message.text.strip()
+        if not url.startswith("http://") and not url.startswith("https://"):
+            await message.answer("❌ Ссылка должна начинаться с http:// или https://\n\nОтправьте ссылку ещё раз:")
+            return
+        bot_data = await redis_get_json("panel_bot")
+        if bot_data:
+            bot_data["button2_url"] = url
+            await redis_set_json("panel_bot", bot_data)
+        user_states.pop(user_id, None)
+        await message.answer("✅ Ссылка кнопки 2 обновлена!", reply_markup=back_kb("templates"))
         return
 
     # TON сумма
@@ -463,10 +506,15 @@ async def callback_handler(call: types.CallbackQuery):
 
     elif data == "templates":
         bot_data = await redis_get_json("panel_bot")
+        photo_status = "✅ Загружено" if bot_data.get("start_photo") else "❌ Не задано"
+        btn2_text = bot_data.get("button2_text") or "—"
+        btn2_url = bot_data.get("button2_url") or "—"
         text = (
             f"📝 <b>Шаблоны</b>\n\n"
             f"Текст /start:\n<i>{bot_data.get('start_text','—')}</i>\n\n"
-            f"Текст кнопки:\n<i>{bot_data.get('button_text','—')}</i>"
+            f"Фото /start: {photo_status}\n\n"
+            f"Текст кнопки 1:\n<i>{bot_data.get('button_text','—')}</i>\n\n"
+            f"Кнопка 2:\n<i>{btn2_text}</i> → <i>{btn2_url}</i>"
         )
         await call.message.edit_text(text, reply_markup=templates_kb(), parse_mode="HTML")
 
@@ -483,7 +531,35 @@ async def callback_handler(call: types.CallbackQuery):
         user_states[user_id] = "awaiting_button_text"
         bot_data = await redis_get_json("panel_bot")
         await call.message.edit_text(
-            f"🔘 <b>Текст кнопки</b>\n\nТекущий:\n<i>{bot_data.get('button_text','—')}</i>\n\nОтправьте новый текст:",
+            f"🔘 <b>Текст кнопки 1</b>\n\nТекущий:\n<i>{bot_data.get('button_text','—')}</i>\n\nОтправьте новый текст:",
+            reply_markup=back_kb("templates"),
+            parse_mode="HTML"
+        )
+
+    elif data == "edit_start_photo":
+        user_states[user_id] = "awaiting_start_photo"
+        bot_data = await redis_get_json("panel_bot")
+        photo_status = "✅ Загружено" if bot_data.get("start_photo") else "❌ Не задано"
+        await call.message.edit_text(
+            f"🖼 <b>Фото /start</b>\n\nТекущее: {photo_status}\n\nОтправьте новое фото:",
+            reply_markup=back_kb("templates"),
+            parse_mode="HTML"
+        )
+
+    elif data == "edit_button2_text":
+        user_states[user_id] = "awaiting_button2_text"
+        bot_data = await redis_get_json("panel_bot")
+        await call.message.edit_text(
+            f"🔗 <b>Кнопка 2 — название</b>\n\nТекущее:\n<i>{bot_data.get('button2_text','—')}</i>\n\nОтправьте новое название:",
+            reply_markup=back_kb("templates"),
+            parse_mode="HTML"
+        )
+
+    elif data == "edit_button2_url":
+        user_states[user_id] = "awaiting_button2_url"
+        bot_data = await redis_get_json("panel_bot")
+        await call.message.edit_text(
+            f"🔗 <b>Кнопка 2 — ссылка</b>\n\nТекущая:\n<i>{bot_data.get('button2_url','—')}</i>\n\nОтправьте новую ссылку (https://...):",
             reply_markup=back_kb("templates"),
             parse_mode="HTML"
         )
