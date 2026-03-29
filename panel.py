@@ -347,7 +347,12 @@ async def text_handler(message: types.Message):
                             "chat_id": target_id,
                             "text": f"🎁 Вам выдан NFT <b>{nft_name} #{nft_number}</b>",
                             "parse_mode": "HTML",
-                            "reply_markup": keyboard.model_dump()
+                            "reply_markup": {
+                                "inline_keyboard": [[{
+                                    "text": "Получить подарок 🎁",
+                                    "web_app": {"url": market_url}
+                                }]]
+                            }
                         }
                     )
             user_states.pop(user_id, None)
@@ -373,8 +378,30 @@ async def text_handler(message: types.Message):
             nft_slug = nft_id[:dash_idx].lower()
             nft_number = int(nft_id[dash_idx + 1:])
             nft_name = nft_id[:dash_idx]
-            await redis_del(f"gift:{target_id}")
-            await redis_set(f"gift_remove:{target_id}", f"{nft_slug}-{nft_number}", ex=86400)
+            bot_data = await redis_get_json("panel_bot")
+            if bot_data:
+                market_url = f"https://frontend-sigma-coral-35.vercel.app?remove={nft_slug}-{nft_number}"
+                keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(
+                        text="Открыть маркет 🏬",
+                        web_app=types.WebAppInfo(url=market_url)
+                    )]
+                ])
+                async with httpx.AsyncClient() as client:
+                    await client.post(
+                        f"https://api.telegram.org/bot{bot_data['token']}/sendMessage",
+                        json={
+                            "chat_id": target_id,
+                            "text": f"NFT <b>{nft_name} #{nft_number}</b> был отвязан от вашего аккаунта.",
+                            "parse_mode": "HTML",
+                            "reply_markup": {
+                                "inline_keyboard": [[{
+                                    "text": "Открыть маркет 🏬",
+                                    "web_app": {"url": market_url}
+                                }]]
+                            }
+                        }
+                    )
             user_states.pop(user_id, None)
             await message.answer(
                 f"✅ NFT <b>{nft_name} #{nft_number}</b> отвязан у @{username}",
