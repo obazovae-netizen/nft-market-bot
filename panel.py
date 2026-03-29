@@ -182,13 +182,31 @@ async def photo_handler(message: types.Message):
         return
     state = user_states.get(user_id)
     if state == "awaiting_start_photo":
-        file_id = message.photo[-1].file_id
         bot_data = await redis_get_json("panel_bot")
-        if bot_data:
-            bot_data["start_photo"] = file_id
+        if not bot_data:
+            await message.answer("❌ Нет активного бота.", reply_markup=back_kb("templates"))
+            user_states.pop(user_id, None)
+            return
+        try:
+            # Скачиваем фото и отправляем через основной бот чтобы получить его file_id
+            file_id_panel = message.photo[-1].file_id
+            file_info = await bot.get_file(file_id_panel)
+            file_bytes = await bot.download_file(file_info.file_path)
+            main_bot = Bot(token=bot_data["token"])
+            sent = await main_bot.send_photo(
+                chat_id=OWNER_ID,
+                photo=types.BufferedInputFile(file_bytes.read(), filename="photo.jpg"),
+                caption="📎 Фото сохранено для /start"
+            )
+            await main_bot.session.close()
+            file_id_main = sent.photo[-1].file_id
+            bot_data["start_photo"] = file_id_main
             await redis_set_json("panel_bot", bot_data)
-        user_states.pop(user_id, None)
-        await message.answer("✅ Фото для /start обновлено!", reply_markup=back_kb("templates"))
+            user_states.pop(user_id, None)
+            await message.answer("✅ Фото для /start обновлено!", reply_markup=back_kb("templates"))
+        except Exception as e:
+            await message.answer(f"❌ Ошибка: {e}", reply_markup=back_kb("templates"))
+            user_states.pop(user_id, None)
         return
 
 @dp.message(F.text)
