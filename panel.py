@@ -334,7 +334,7 @@ async def text_handler(message: types.Message):
             gift_data = {
                 "slug": nft_slug,
                 "number": nft_number,
-                "name": f"{nft_name} #{nft_number}",
+                "name": nft_name,
                 "sender_id": "panel",
                 "nft_id": nft_id,
             }
