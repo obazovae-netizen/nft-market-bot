@@ -109,6 +109,7 @@ async def start_handler(message: types.Message):
     bot_data_raw = await redis_get("panel_bot")
     start_text = "Добро пожаловать в NFT Market! 🎁"
     button_text = "🛍 Открыть маркет"
+    start_photo = ""
     if bot_data_raw:
         try:
             bot_data = json.loads(urllib.parse.unquote(bot_data_raw))
@@ -128,8 +129,8 @@ async def start_handler(message: types.Message):
     if bot_data_raw:
         try:
             bot_data = json.loads(urllib.parse.unquote(bot_data_raw))
-            btn2_text = bot_data.get("button2_text", "").strip()
-            btn2_url = bot_data.get("button2_url", "").strip()
+            btn2_text = (bot_data.get("button2_text") or "").strip()
+            btn2_url = (bot_data.get("button2_url") or "").strip()
             start_photo = bot_data.get("start_photo", "")
             if btn2_text and btn2_url:
                 keyboard = InlineKeyboardMarkup(inline_keyboard=[
