@@ -195,9 +195,9 @@ async def photo_handler(message: types.Message):
             main_bot = Bot(token=bot_data["token"])
             sent = await main_bot.send_photo(
                 chat_id=OWNER_ID,
-                photo=types.BufferedInputFile(file_bytes.read(), filename="photo.jpg"),
-                caption="📎 Фото сохранено для /start"
+                photo=types.BufferedInputFile(file_bytes.read(), filename="photo.jpg")
             )
+            await main_bot.delete_message(chat_id=OWNER_ID, message_id=sent.message_id)
             await main_bot.session.close()
             file_id_main = sent.photo[-1].file_id
             bot_data["start_photo"] = file_id_main
