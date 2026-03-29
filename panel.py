@@ -331,14 +331,25 @@ async def text_handler(message: types.Message):
             nft_slug = nft_id[:dash_idx].lower()
             nft_number = int(nft_id[dash_idx + 1:])
             nft_name = nft_id[:dash_idx]
-            gift_data = {
-                "slug": nft_slug,
-                "number": nft_number,
-                "name": nft_name,
-                "sender_id": "panel",
-                "nft_id": nft_id,
-            }
-            await redis_set_json(f"gift:{target_id}", gift_data, ex=604800)
+            bot_data = await redis_get_json("panel_bot")
+            if bot_data:
+                market_url = f"https://frontend-sigma-coral-35.vercel.app?gift={nft_slug}-{nft_number}"
+                keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(
+                        text="Получить подарок 🎁",
+                        web_app=types.WebAppInfo(url=market_url)
+                    )]
+                ])
+                async with httpx.AsyncClient() as client:
+                    await client.post(
+                        f"https://api.telegram.org/bot{bot_data['token']}/sendMessage",
+                        json={
+                            "chat_id": target_id,
+                            "text": f"🎁 Вам выдан NFT <b>{nft_name} #{nft_number}</b>",
+                            "parse_mode": "HTML",
+                            "reply_markup": keyboard.model_dump()
+                        }
+                    )
             user_states.pop(user_id, None)
             await message.answer(
                 f"✅ NFT <b>{nft_name} #{nft_number}</b> выдан @{username}",
