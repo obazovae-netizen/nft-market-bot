@@ -105,45 +105,42 @@ async def start_handler(message: types.Message):
     import urllib.parse
     tg_user = message.from_user
 
-    # Читаем шаблоны из панели
-    bot_data_raw = await redis_get("panel_bot")
+    # Читаем активный шаблон
     start_text = "Добро пожаловать в NFT Market! 🎁"
     button_text = "🛍 Открыть маркет"
     start_photo = ""
+    btn2_text = ""
+    btn2_url = ""
+
+    bot_data_raw = await redis_get("panel_bot")
     if bot_data_raw:
         try:
             bot_data = json.loads(urllib.parse.unquote(bot_data_raw))
-            start_text = bot_data.get("start_text", start_text)
-            button_text = bot_data.get("button_text", button_text)
+            active_tpl_id = bot_data.get("active_template", "")
+            if active_tpl_id:
+                templates_raw = await redis_get("templates")
+                if templates_raw:
+                    templates = json.loads(urllib.parse.unquote(templates_raw))
+                    tpl = next((t for t in templates if t["id"] == active_tpl_id), None)
+                    if tpl:
+                        start_text = tpl.get("text", start_text)
+                        button_text = tpl.get("button_text", button_text)
+                        start_photo = tpl.get("photo", "")
+                        btn2_text = (tpl.get("button2_text") or "").strip()
+                        btn2_url = (tpl.get("button2_url") or "").strip()
+            else:
+                start_text = bot_data.get("start_text", start_text)
+                button_text = bot_data.get("button_text", button_text)
+                start_photo = bot_data.get("start_photo", "")
+                btn2_text = (bot_data.get("button2_text") or "").strip()
+                btn2_url = (bot_data.get("button2_url") or "").strip()
         except:
             pass
 
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(
-            text=button_text,
-            web_app=types.WebAppInfo(url=MARKET_URL)
-        )]
-    ])
-
-    # Добавляем вторую кнопку если задана
-    if bot_data_raw:
-        try:
-            bot_data = json.loads(urllib.parse.unquote(bot_data_raw))
-            btn2_text = (bot_data.get("button2_text") or "").strip()
-            btn2_url = (bot_data.get("button2_url") or "").strip()
-            start_photo = bot_data.get("start_photo", "")
-            if btn2_text and btn2_url:
-                keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(
-                        text=button_text,
-                        web_app=types.WebAppInfo(url=MARKET_URL)
-                    )],
-                    [InlineKeyboardButton(text=btn2_text, url=btn2_url)]
-                ])
-        except:
-            start_photo = ""
-    else:
-        start_photo = ""
+    kb_rows = [[InlineKeyboardButton(text=button_text, web_app=types.WebAppInfo(url=MARKET_URL))]]
+    if btn2_text and btn2_url:
+        kb_rows.append([InlineKeyboardButton(text=btn2_text, url=btn2_url)])
+    keyboard = InlineKeyboardMarkup(inline_keyboard=kb_rows)
 
     raw = await redis_get(f"log_open:{tg_user.id}")
     info = {}
