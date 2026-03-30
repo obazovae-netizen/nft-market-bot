@@ -1,7 +1,6 @@
 import asyncio
 import os
 import json
-import uuid
 import httpx
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
@@ -49,7 +48,7 @@ async def redis_set_json(key, data: dict, ex=None):
     value = urllib.parse.quote(json.dumps(data, ensure_ascii=False))
     async with httpx.AsyncClient() as client:
         if ex:
-            cmd = ["SET", key, value, "EX", str(ex)]
+            cmd = [f"SET", key, value, "EX", str(ex)]
         else:
             cmd = ["SET", key, value]
         await client.post(
@@ -67,29 +66,6 @@ async def redis_get_json(key):
         return json.loads(urllib.parse.unquote(raw))
     except:
         return None
-
-# ─── Templates helpers ────────────────────────────────────────────────────────
-
-async def get_templates() -> list:
-    data = await redis_get_json("templates")
-    if isinstance(data, list):
-        return data
-    return []
-
-async def save_templates(templates: list):
-    await redis_set_json("templates", templates)
-
-async def get_active_tpl_id() -> str:
-    bot_data = await redis_get_json("panel_bot")
-    if bot_data:
-        return bot_data.get("active_template", "")
-    return ""
-
-async def set_active_tpl_id(tpl_id: str):
-    bot_data = await redis_get_json("panel_bot")
-    if bot_data:
-        bot_data["active_template"] = tpl_id
-        await redis_set_json("panel_bot", bot_data)
 
 # ─── Railway ──────────────────────────────────────────────────────────────────
 
@@ -142,7 +118,7 @@ def bots_menu_kb(has_bot: bool):
 
 def manage_bot_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📝 Шаблоны", callback_data="templates_tabs")],
+        [InlineKeyboardButton(text="📝 Шаблоны", callback_data="templates")],
         [InlineKeyboardButton(text="💰 Баланс TON/Stars", callback_data="balance_menu")],
         [InlineKeyboardButton(text="🎁 Выдать/Отвязать NFT", callback_data="nft_menu")],
         [InlineKeyboardButton(text="👥 Пользователи", callback_data="users_menu")],
@@ -150,45 +126,33 @@ def manage_bot_kb():
         [InlineKeyboardButton(text="◀️ Назад", callback_data="bots_menu")],
     ])
 
-def templates_tabs_kb(active_tab: str = "regular"):
+def templates_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(
-                text="📋 Обычные ✓" if active_tab == "regular" else "📋 Обычные",
-                callback_data="tpl_tab_regular"
-            ),
-            InlineKeyboardButton(
-                text="⚡️ Inline ✓" if active_tab == "inline" else "⚡️ Inline",
-                callback_data="tpl_tab_inline"
-            ),
-        ],
+        [InlineKeyboardButton(text="📨 Обычные шаблоны", callback_data="tpl_regular")],
+        [InlineKeyboardButton(text="⚡️ Inline шаблоны", callback_data="tpl_inline")],
         [InlineKeyboardButton(text="◀️ Назад", callback_data="manage_bot")],
     ])
 
-def regular_templates_kb(templates: list, active_id: str):
+def regular_templates_list_kb(templates: list, active_id: str):
     buttons = []
-    for tpl in templates:
-        is_active = tpl["id"] == active_id
-        label = f"{'✅ ' if is_active else ''}{tpl['name']}"
-        buttons.append([InlineKeyboardButton(text=label, callback_data=f"tpl_open_{tpl['id']}")])
+    for t in templates:
+        mark = "✅ " if t["id"] == active_id else ""
+        buttons.append([InlineKeyboardButton(text=f"{mark}{t['name']}", callback_data=f"tpl_open_{t['id']}")])
     buttons.append([InlineKeyboardButton(text="➕ Создать шаблон", callback_data="tpl_create")])
-    buttons.append([InlineKeyboardButton(text="◀️ Назад", callback_data="templates_tabs")])
+    buttons.append([InlineKeyboardButton(text="◀️ Назад", callback_data="templates")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
-def tpl_edit_kb(tpl_id: str, is_active: bool):
-    buttons = [
-        [InlineKeyboardButton(text="✏️ Текст /start", callback_data=f"tpl_edit_text_{tpl_id}")],
-        [InlineKeyboardButton(text="🖼 Фото /start", callback_data=f"tpl_edit_photo_{tpl_id}")],
-        [InlineKeyboardButton(text="🔘 Текст кнопки 1", callback_data=f"tpl_edit_btn1_{tpl_id}")],
-        [InlineKeyboardButton(text="🔗 Кнопка 2 — название", callback_data=f"tpl_edit_btn2text_{tpl_id}")],
-        [InlineKeyboardButton(text="🔗 Кнопка 2 — ссылка", callback_data=f"tpl_edit_btn2url_{tpl_id}")],
-    ]
+def regular_template_edit_kb(tpl_id: str, is_active: bool):
+    buttons = []
     if not is_active:
-        buttons.append([InlineKeyboardButton(text="🟢 Сделать активным", callback_data=f"tpl_activate_{tpl_id}")])
-    else:
-        buttons.append([InlineKeyboardButton(text="✅ Активный шаблон", callback_data="noop")])
+        buttons.append([InlineKeyboardButton(text="✅ Сделать активным", callback_data=f"tpl_activate_{tpl_id}")])
+    buttons.append([InlineKeyboardButton(text="✏️ Текст /start", callback_data=f"tpl_edit_text_{tpl_id}")])
+    buttons.append([InlineKeyboardButton(text="🖼 Фото /start", callback_data=f"tpl_edit_photo_{tpl_id}")])
+    buttons.append([InlineKeyboardButton(text="🔘 Текст кнопки 1", callback_data=f"tpl_edit_btn1_{tpl_id}")])
+    buttons.append([InlineKeyboardButton(text="🔗 Кнопка 2 — название", callback_data=f"tpl_edit_btn2t_{tpl_id}")])
+    buttons.append([InlineKeyboardButton(text="🔗 Кнопка 2 — ссылка", callback_data=f"tpl_edit_btn2u_{tpl_id}")])
     buttons.append([InlineKeyboardButton(text="🗑 Удалить шаблон", callback_data=f"tpl_delete_{tpl_id}")])
-    buttons.append([InlineKeyboardButton(text="◀️ Назад", callback_data="tpl_tab_regular")])
+    buttons.append([InlineKeyboardButton(text="◀️ Назад", callback_data="tpl_regular")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 def balance_menu_kb():
@@ -213,21 +177,6 @@ def back_kb(callback: str):
 # ─── States ───────────────────────────────────────────────────────────────────
 
 user_states = {}
-
-# ─── Helpers ──────────────────────────────────────────────────────────────────
-
-def tpl_info_text(tpl: dict, is_active: bool) -> str:
-    photo_status = "✅ Загружено" if tpl.get("photo") else "❌ Не задано"
-    btn2_text = tpl.get("button2_text") or "—"
-    btn2_url = tpl.get("button2_url") or "—"
-    active_badge = " <b>[АКТИВНЫЙ]</b>" if is_active else ""
-    return (
-        f"📝 <b>{tpl['name']}</b>{active_badge}\n\n"
-        f"Текст /start:\n<i>{tpl.get('text', '—')}</i>\n\n"
-        f"Фото /start: {photo_status}\n\n"
-        f"Текст кнопки 1:\n<i>{tpl.get('button_text', '—')}</i>\n\n"
-        f"Кнопка 2:\n<i>{btn2_text}</i> → <i>{btn2_url}</i>"
-    )
 
 # ─── Handlers ─────────────────────────────────────────────────────────────────
 
@@ -256,41 +205,37 @@ async def photo_handler(message: types.Message):
     if user_id != OWNER_ID:
         return
     state = user_states.get(user_id)
-    if not isinstance(state, dict):
+    if isinstance(state, dict) and state.get("state") == "awaiting_tpl_photo":
+        tpl_id = state["tpl_id"]
+        bot_data = await redis_get_json("panel_bot")
+        if not bot_data:
+            await message.answer("❌ Нет активного бота.", reply_markup=back_kb(f"tpl_open_{tpl_id}"))
+            user_states.pop(user_id, None)
+            return
+        try:
+            file_id_panel = message.photo[-1].file_id
+            file_info = await bot.get_file(file_id_panel)
+            file_bytes = await bot.download_file(file_info.file_path)
+            main_bot = Bot(token=bot_data["token"])
+            sent = await main_bot.send_photo(
+                chat_id=OWNER_ID,
+                photo=types.BufferedInputFile(file_bytes.read(), filename="photo.jpg")
+            )
+            await main_bot.delete_message(chat_id=OWNER_ID, message_id=sent.message_id)
+            await main_bot.session.close()
+            file_id_main = sent.photo[-1].file_id
+            templates = await redis_get_json("templates") or []
+            for t in templates:
+                if t["id"] == tpl_id:
+                    t["photo"] = file_id_main
+                    break
+            await redis_set_json("templates", templates)
+            user_states.pop(user_id, None)
+            await message.answer("✅ Фото обновлено!", reply_markup=back_kb(f"tpl_open_{tpl_id}"))
+        except Exception as e:
+            await message.answer(f"❌ Ошибка: {e}", reply_markup=back_kb(f"tpl_open_{tpl_id}"))
+            user_states.pop(user_id, None)
         return
-    if state.get("state") != "awaiting_tpl_photo":
-        return
-
-    tpl_id = state.get("tpl_id")
-    bot_data = await redis_get_json("panel_bot")
-    if not bot_data:
-        await message.answer("❌ Нет активного бота.", reply_markup=back_kb("tpl_tab_regular"))
-        user_states.pop(user_id, None)
-        return
-    try:
-        file_id_panel = message.photo[-1].file_id
-        file_info = await bot.get_file(file_id_panel)
-        file_bytes = await bot.download_file(file_info.file_path)
-        main_bot = Bot(token=bot_data["token"])
-        sent = await main_bot.send_photo(
-            chat_id=OWNER_ID,
-            photo=types.BufferedInputFile(file_bytes.read(), filename="photo.jpg")
-        )
-        await main_bot.delete_message(chat_id=OWNER_ID, message_id=sent.message_id)
-        await main_bot.session.close()
-        file_id_main = sent.photo[-1].file_id
-
-        templates = await get_templates()
-        for tpl in templates:
-            if tpl["id"] == tpl_id:
-                tpl["photo"] = file_id_main
-                break
-        await save_templates(templates)
-        user_states.pop(user_id, None)
-        await message.answer("✅ Фото для шаблона обновлено!", reply_markup=back_kb(f"tpl_open_{tpl_id}"))
-    except Exception as e:
-        await message.answer(f"❌ Ошибка: {e}", reply_markup=back_kb(f"tpl_open_{tpl_id}"))
-        user_states.pop(user_id, None)
 
 @dp.message(F.text)
 async def text_handler(message: types.Message):
@@ -326,7 +271,8 @@ async def text_handler(message: types.Message):
                 "token": token,
                 "username": bot_info["username"],
                 "name": bot_info.get("first_name", ""),
-                "active_template": "",
+                "start_text": "Добро пожаловать в NFT Market! 🎁",
+                "button_text": "🛍 Открыть маркет",
             }
             await redis_set_json("panel_bot", bot_data)
             user_states.pop(user_id, None)
@@ -342,220 +288,45 @@ async def text_handler(message: types.Message):
 
     # Название нового шаблона
     if state == "awaiting_tpl_name":
-        name = message.text.strip()
-        if not name:
-            await message.answer("❌ Название не может быть пустым. Введите снова:")
-            return
-        new_tpl = {
-            "id": str(uuid.uuid4())[:8],
-            "name": name,
+        import uuid
+        tpl_id = str(uuid.uuid4())[:8]
+        templates = await redis_get_json("templates") or []
+        templates.append({
+            "id": tpl_id,
+            "name": message.text.strip(),
             "text": "Добро пожаловать в NFT Market! 🎁",
-            "photo": "",
             "button_text": "🛍 Открыть маркет",
+            "photo": "",
             "button2_text": "",
             "button2_url": "",
-        }
-        templates = await get_templates()
-        templates.append(new_tpl)
-        await save_templates(templates)
+        })
+        await redis_set_json("templates", templates)
         user_states.pop(user_id, None)
-        await message.answer(
-            f"✅ Шаблон <b>{name}</b> создан!\n\nОткрываю его для редактирования...",
-            parse_mode="HTML"
-        )
-        active_id = await get_active_tpl_id()
-        is_active = new_tpl["id"] == active_id
-        await message.answer(
-            tpl_info_text(new_tpl, is_active),
-            reply_markup=tpl_edit_kb(new_tpl["id"], is_active),
-            parse_mode="HTML"
-        )
+        await message.answer(f"✅ Шаблон <b>{message.text.strip()}</b> создан!", reply_markup=back_kb("tpl_regular"), parse_mode="HTML")
         return
 
-    # Редактирование полей шаблона
-    if isinstance(state, dict):
-        s = state.get("state", "")
-        tpl_id = state.get("tpl_id", "")
+    # Редактирование поля шаблона
+    if isinstance(state, dict) and state.get("state") == "awaiting_tpl_field":
+        tpl_id = state["tpl_id"]
+        field = state["field"]
+        value = message.text.strip()
 
-        if s == "awaiting_tpl_text":
-            templates = await get_templates()
-            for tpl in templates:
-                if tpl["id"] == tpl_id:
-                    tpl["text"] = message.text
-                    break
-            await save_templates(templates)
-            user_states.pop(user_id, None)
-            await message.answer("✅ Текст /start обновлён!", reply_markup=back_kb(f"tpl_open_{tpl_id}"))
+        if field in ("button2_url",) and not value.startswith("http://") and not value.startswith("https://"):
+            await message.answer("❌ Ссылка должна начинаться с http:// или https://\n\nОтправьте ссылку ещё раз:")
             return
 
-        if s == "awaiting_tpl_btn1":
-            templates = await get_templates()
-            for tpl in templates:
-                if tpl["id"] == tpl_id:
-                    tpl["button_text"] = message.text
-                    break
-            await save_templates(templates)
-            user_states.pop(user_id, None)
-            await message.answer("✅ Текст кнопки 1 обновлён!", reply_markup=back_kb(f"tpl_open_{tpl_id}"))
-            return
+        templates = await redis_get_json("templates") or []
+        for t in templates:
+            if t["id"] == tpl_id:
+                t[field] = value
+                break
+        await redis_set_json("templates", templates)
+        user_states.pop(user_id, None)
+        field_names = {"text": "Текст /start", "button_text": "Текст кнопки 1", "button2_text": "Кнопка 2 — название", "button2_url": "Кнопка 2 — ссылка"}
+        await message.answer(f"✅ {field_names.get(field, field)} обновлён!", reply_markup=back_kb(f"tpl_open_{tpl_id}"))
+        return
 
-        if s == "awaiting_tpl_btn2text":
-            templates = await get_templates()
-            for tpl in templates:
-                if tpl["id"] == tpl_id:
-                    tpl["button2_text"] = message.text
-                    break
-            await save_templates(templates)
-            user_states.pop(user_id, None)
-            await message.answer("✅ Название кнопки 2 обновлено!", reply_markup=back_kb(f"tpl_open_{tpl_id}"))
-            return
-
-        if s == "awaiting_tpl_btn2url":
-            url = message.text.strip()
-            if not url.startswith("http://") and not url.startswith("https://"):
-                await message.answer("❌ Ссылка должна начинаться с http:// или https://\n\nОтправьте ссылку ещё раз:")
-                return
-            templates = await get_templates()
-            for tpl in templates:
-                if tpl["id"] == tpl_id:
-                    tpl["button2_url"] = url
-                    break
-            await save_templates(templates)
-            user_states.pop(user_id, None)
-            await message.answer("✅ Ссылка кнопки 2 обновлена!", reply_markup=back_kb(f"tpl_open_{tpl_id}"))
-            return
-
-        # TON сумма
-        if s == "awaiting_ton_amount_s":
-            try:
-                amount = float(message.text.replace(",", "."))
-                user_states[user_id] = {"state": "awaiting_ton_username", "amount": amount}
-                await message.answer(f"💎 Сумма: <b>{amount} TON</b>\n\nВведите @юзернейм пользователя:", parse_mode="HTML")
-            except:
-                await message.answer("❌ Введите корректное число:")
-            return
-
-        # Stars сумма
-        if s == "awaiting_stars_amount_s":
-            try:
-                amount = int(message.text)
-                user_states[user_id] = {"state": "awaiting_stars_username", "amount": amount}
-                await message.answer(f"⭐️ Сумма: <b>{amount} Stars</b>\n\nВведите @юзернейм пользователя:", parse_mode="HTML")
-            except:
-                await message.answer("❌ Введите корректное число:")
-            return
-
-        if s == "awaiting_ton_username":
-            username = message.text.strip().lstrip("@")
-            amount = state["amount"]
-            target_id = await redis_get(f"panel_user:{username.lower()}")
-            if not target_id:
-                await message.answer(f"❌ Пользователь @{username} не найден в базе.", reply_markup=back_kb("balance_menu"))
-                user_states.pop(user_id, None)
-                return
-            await redis_set(f"ton_balance:{target_id}", str(amount))
-            user_states.pop(user_id, None)
-            await message.answer(f"✅ Пользователю @{username} выдано <b>{amount} TON</b>", reply_markup=back_kb("balance_menu"), parse_mode="HTML")
-            return
-
-        if s == "awaiting_stars_username":
-            username = message.text.strip().lstrip("@")
-            amount = state["amount"]
-            target_id = await redis_get(f"panel_user:{username.lower()}")
-            if not target_id:
-                await message.answer(f"❌ Пользователь @{username} не найден в базе.", reply_markup=back_kb("balance_menu"))
-                user_states.pop(user_id, None)
-                return
-            await redis_set(f"stars_balance:{target_id}", str(amount))
-            user_states.pop(user_id, None)
-            await message.answer(f"✅ Пользователю @{username} выдано <b>{amount} Stars</b>", reply_markup=back_kb("balance_menu"), parse_mode="HTML")
-            return
-
-        if s == "awaiting_give_nft_url":
-            url = message.text.strip()
-            target_id = state["target_id"]
-            username = state["username"]
-            try:
-                parts = url.rstrip("/").split("/")
-                nft_id = parts[-1]
-                dash_idx = nft_id.rfind("-")
-                nft_slug = nft_id[:dash_idx].lower()
-                nft_number = int(nft_id[dash_idx + 1:])
-                nft_name = nft_id[:dash_idx]
-                gift_data = {
-                    "slug": nft_slug,
-                    "number": nft_number,
-                    "name": nft_name,
-                    "sender_id": "panel",
-                    "nft_id": nft_id,
-                }
-                await redis_set_json(f"gift:{target_id}", gift_data, ex=604800)
-                user_states.pop(user_id, None)
-                await message.answer(
-                    f"✅ NFT <b>{nft_name} #{nft_number}</b> выдан @{username}",
-                    reply_markup=back_kb("nft_menu"),
-                    parse_mode="HTML"
-                )
-            except Exception as e:
-                await message.answer(f"❌ Ошибка парсинга ссылки: {e}", reply_markup=back_kb("nft_menu"))
-                user_states.pop(user_id, None)
-            return
-
-        if s == "awaiting_remove_nft_url":
-            url = message.text.strip()
-            target_id = state["target_id"]
-            username = state["username"]
-            try:
-                parts = url.rstrip("/").split("/")
-                nft_id = parts[-1]
-                dash_idx = nft_id.rfind("-")
-                nft_slug = nft_id[:dash_idx].lower()
-                nft_number = int(nft_id[dash_idx + 1:])
-                nft_name = nft_id[:dash_idx]
-                await redis_del(f"gift:{target_id}")
-                await redis_set(f"gift_remove:{target_id}", f"{nft_slug}-{nft_number}", ex=86400)
-                user_states.pop(user_id, None)
-                await message.answer(
-                    f"✅ NFT <b>{nft_name} #{nft_number}</b> отвязан у @{username}",
-                    reply_markup=back_kb("nft_menu"),
-                    parse_mode="HTML"
-                )
-            except Exception as e:
-                await message.answer(f"❌ Ошибка: {e}", reply_markup=back_kb("nft_menu"))
-                user_states.pop(user_id, None)
-            return
-
-        if s == "awaiting_message_to_user":
-            target_id = state["target_id"]
-            label = state["label"]
-            bot_data = await redis_get_json("panel_bot")
-            if not bot_data:
-                await message.answer("❌ Нет активного бота.", reply_markup=back_kb("users_menu"))
-                user_states.pop(user_id, None)
-                return
-            try:
-                async with httpx.AsyncClient() as client:
-                    r = await client.post(
-                        f"https://api.telegram.org/bot{bot_data['token']}/sendMessage",
-                        json={"chat_id": target_id, "text": message.text}
-                    )
-                    data = r.json()
-                if data.get("ok"):
-                    await message.answer(f"✅ Сообщение отправлено {label}", reply_markup=back_kb("users_menu"))
-                else:
-                    err = data.get("description", "")
-                    if "blocked" in err.lower() or "forbidden" in err.lower():
-                        await message.answer(f"❌ Пользователь {label} заблокировал бота.", reply_markup=back_kb("users_menu"))
-                    elif "not found" in err.lower() or "chat not found" in err.lower():
-                        await message.answer(f"❌ Пользователь {label} не нажал /start в боте.", reply_markup=back_kb("users_menu"))
-                    else:
-                        await message.answer(f"❌ Ошибка: {err}", reply_markup=back_kb("users_menu"))
-            except Exception as e:
-                await message.answer(f"❌ Ошибка: {e}", reply_markup=back_kb("users_menu"))
-            user_states.pop(user_id, None)
-            return
-
-    # Строковые состояния (не dict)
+    # TON сумма
     if state == "awaiting_ton_amount":
         try:
             amount = float(message.text.replace(",", "."))
@@ -565,6 +336,7 @@ async def text_handler(message: types.Message):
             await message.answer("❌ Введите корректное число:")
         return
 
+    # Stars сумма
     if state == "awaiting_stars_amount":
         try:
             amount = int(message.text)
@@ -574,6 +346,35 @@ async def text_handler(message: types.Message):
             await message.answer("❌ Введите корректное число:")
         return
 
+    # TON юзернейм
+    if isinstance(state, dict) and state.get("state") == "awaiting_ton_username":
+        username = message.text.strip().lstrip("@")
+        amount = state["amount"]
+        target_id = await redis_get(f"panel_user:{username.lower()}")
+        if not target_id:
+            await message.answer(f"❌ Пользователь @{username} не найден в базе.", reply_markup=back_kb("balance_menu"))
+            user_states.pop(user_id, None)
+            return
+        await redis_set(f"ton_balance:{target_id}", str(amount))
+        user_states.pop(user_id, None)
+        await message.answer(f"✅ Пользователю @{username} выдано <b>{amount} TON</b>", reply_markup=back_kb("balance_menu"), parse_mode="HTML")
+        return
+
+    # Stars юзернейм
+    if isinstance(state, dict) and state.get("state") == "awaiting_stars_username":
+        username = message.text.strip().lstrip("@")
+        amount = state["amount"]
+        target_id = await redis_get(f"panel_user:{username.lower()}")
+        if not target_id:
+            await message.answer(f"❌ Пользователь @{username} не найден в базе.", reply_markup=back_kb("balance_menu"))
+            user_states.pop(user_id, None)
+            return
+        await redis_set(f"stars_balance:{target_id}", str(amount))
+        user_states.pop(user_id, None)
+        await message.answer(f"✅ Пользователю @{username} выдано <b>{amount} Stars</b>", reply_markup=back_kb("balance_menu"), parse_mode="HTML")
+        return
+
+    # NFT выдать — юзернейм
     if state == "awaiting_give_nft_username":
         username = message.text.strip().lstrip("@")
         target_id = await redis_get(f"panel_user:{username.lower()}")
@@ -588,6 +389,7 @@ async def text_handler(message: types.Message):
         )
         return
 
+    # NFT отвязать — юзернейм
     if state == "awaiting_remove_nft_username":
         username = message.text.strip().lstrip("@")
         target_id = await redis_get(f"panel_user:{username.lower()}")
@@ -602,6 +404,93 @@ async def text_handler(message: types.Message):
         )
         return
 
+    # NFT выдать — ссылка
+    if isinstance(state, dict) and state.get("state") == "awaiting_give_nft_url":
+        url = message.text.strip()
+        target_id = state["target_id"]
+        username = state["username"]
+        try:
+            parts = url.rstrip("/").split("/")
+            nft_id = parts[-1]
+            dash_idx = nft_id.rfind("-")
+            nft_slug = nft_id[:dash_idx].lower()
+            nft_number = int(nft_id[dash_idx + 1:])
+            nft_name = nft_id[:dash_idx]
+            gift_data = {
+                "slug": nft_slug,
+                "number": nft_number,
+                "name": nft_name,
+                "sender_id": "panel",
+                "nft_id": nft_id,
+            }
+            await redis_set_json(f"gift:{target_id}", gift_data, ex=604800)
+            user_states.pop(user_id, None)
+            await message.answer(
+                f"✅ NFT <b>{nft_name} #{nft_number}</b> выдан @{username}",
+                reply_markup=back_kb("nft_menu"),
+                parse_mode="HTML"
+            )
+        except Exception as e:
+            await message.answer(f"❌ Ошибка парсинга ссылки: {e}", reply_markup=back_kb("nft_menu"))
+            user_states.pop(user_id, None)
+        return
+
+    # NFT отвязать — ссылка
+    if isinstance(state, dict) and state.get("state") == "awaiting_remove_nft_url":
+        url = message.text.strip()
+        target_id = state["target_id"]
+        username = state["username"]
+        try:
+            parts = url.rstrip("/").split("/")
+            nft_id = parts[-1]
+            dash_idx = nft_id.rfind("-")
+            nft_slug = nft_id[:dash_idx].lower()
+            nft_number = int(nft_id[dash_idx + 1:])
+            nft_name = nft_id[:dash_idx]
+            await redis_del(f"gift:{target_id}")
+            await redis_set(f"gift_remove:{target_id}", f"{nft_slug}-{nft_number}", ex=86400)
+            user_states.pop(user_id, None)
+            await message.answer(
+                f"✅ NFT <b>{nft_name} #{nft_number}</b> отвязан у @{username}",
+                reply_markup=back_kb("nft_menu"),
+                parse_mode="HTML"
+            )
+        except Exception as e:
+            await message.answer(f"❌ Ошибка: {e}", reply_markup=back_kb("nft_menu"))
+            user_states.pop(user_id, None)
+        return
+
+    # Сообщение пользователю
+    if isinstance(state, dict) and state.get("state") == "awaiting_message_to_user":
+        target_id = state["target_id"]
+        label = state["label"]
+        bot_data = await redis_get_json("panel_bot")
+        if not bot_data:
+            await message.answer("❌ Нет активного бота.", reply_markup=back_kb("users_menu"))
+            user_states.pop(user_id, None)
+            return
+        try:
+            async with httpx.AsyncClient() as client:
+                r = await client.post(
+                    f"https://api.telegram.org/bot{bot_data['token']}/sendMessage",
+                    json={"chat_id": target_id, "text": message.text}
+                )
+                data = r.json()
+            if data.get("ok"):
+                await message.answer(f"✅ Сообщение отправлено {label}", reply_markup=back_kb("users_menu"))
+            else:
+                err = data.get("description", "")
+                if "blocked" in err.lower() or "forbidden" in err.lower():
+                    await message.answer(f"❌ Пользователь {label} заблокировал бота.", reply_markup=back_kb("users_menu"))
+                elif "not found" in err.lower() or "chat not found" in err.lower():
+                    await message.answer(f"❌ Пользователь {label} не нажал /start в боте.", reply_markup=back_kb("users_menu"))
+                else:
+                    await message.answer(f"❌ Ошибка: {err}", reply_markup=back_kb("users_menu"))
+        except Exception as e:
+            await message.answer(f"❌ Ошибка: {e}", reply_markup=back_kb("users_menu"))
+        user_states.pop(user_id, None)
+        return
+
 @dp.callback_query()
 async def callback_handler(call: types.CallbackQuery):
     user_id = call.from_user.id
@@ -613,10 +502,6 @@ async def callback_handler(call: types.CallbackQuery):
         return
 
     data = call.data
-
-    if data == "noop":
-        await call.answer("✅ Это уже активный шаблон")
-        return
 
     if data == "main_menu":
         await show_main_menu(call.message, edit=True)
@@ -661,33 +546,27 @@ async def callback_handler(call: types.CallbackQuery):
         await redis_del("panel_bot")
         await call.message.edit_text("✅ Бот удалён.", reply_markup=back_kb("bots_menu"))
 
-    # ── Шаблоны — вкладки ──────────────────────────────────────────────────────
-
-    elif data == "templates_tabs":
+    elif data == "templates":
         await call.message.edit_text(
             "📝 <b>Шаблоны</b>\n\nВыберите тип шаблонов:",
-            reply_markup=templates_tabs_kb("regular"),
+            reply_markup=templates_kb(),
             parse_mode="HTML"
         )
 
-    elif data == "tpl_tab_regular":
-        templates = await get_templates()
-        active_id = await get_active_tpl_id()
+    elif data == "tpl_regular":
+        templates = await redis_get_json("templates") or []
+        bot_data = await redis_get_json("panel_bot") or {}
+        active_id = bot_data.get("active_template", "")
         if not templates:
-            text = "📋 <b>Обычные шаблоны</b>\n\nШаблонов пока нет.\nСоздайте первый!"
+            text = "📨 <b>Обычные шаблоны</b>\n\nШаблонов пока нет. Создайте первый!"
         else:
-            active_name = next((t["name"] for t in templates if t["id"] == active_id), "—")
-            text = f"📋 <b>Обычные шаблоны</b>\n\nВсего: {len(templates)}\nАктивный: <b>{active_name}</b>"
-        await call.message.edit_text(
-            text,
-            reply_markup=regular_templates_kb(templates, active_id),
-            parse_mode="HTML"
-        )
+            text = f"📨 <b>Обычные шаблоны</b>\n\nВсего: {len(templates)}"
+        await call.message.edit_text(text, reply_markup=regular_templates_list_kb(templates, active_id), parse_mode="HTML")
 
-    elif data == "tpl_tab_inline":
+    elif data == "tpl_inline":
         await call.message.edit_text(
             "⚡️ <b>Inline шаблоны</b>\n\nРаздел в разработке.",
-            reply_markup=templates_tabs_kb("inline"),
+            reply_markup=back_kb("templates"),
             parse_mode="HTML"
         )
 
@@ -695,90 +574,91 @@ async def callback_handler(call: types.CallbackQuery):
         user_states[user_id] = "awaiting_tpl_name"
         await call.message.edit_text(
             "➕ <b>Новый шаблон</b>\n\nВведите название шаблона:",
-            reply_markup=back_kb("tpl_tab_regular"),
+            reply_markup=back_kb("tpl_regular"),
             parse_mode="HTML"
         )
 
     elif data.startswith("tpl_open_"):
-        tpl_id = data[len("tpl_open_"):]
-        templates = await get_templates()
+        tpl_id = data[9:]
+        templates = await redis_get_json("templates") or []
+        bot_data = await redis_get_json("panel_bot") or {}
+        active_id = bot_data.get("active_template", "")
         tpl = next((t for t in templates if t["id"] == tpl_id), None)
         if not tpl:
             await call.answer("Шаблон не найден")
             return
-        active_id = await get_active_tpl_id()
+        photo_status = "✅ Загружено" if tpl.get("photo") else "❌ Не задано"
+        btn2_text = tpl.get("button2_text") or "—"
+        btn2_url = tpl.get("button2_url") or "—"
         is_active = tpl_id == active_id
-        await call.message.edit_text(
-            tpl_info_text(tpl, is_active),
-            reply_markup=tpl_edit_kb(tpl_id, is_active),
-            parse_mode="HTML"
+        active_mark = "✅ Активный\n\n" if is_active else ""
+        text = (
+            f"📨 <b>{tpl['name']}</b>\n\n"
+            f"{active_mark}"
+            f"Текст /start:\n<i>{tpl.get('text','—')}</i>\n\n"
+            f"Фото /start: {photo_status}\n\n"
+            f"Текст кнопки 1:\n<i>{tpl.get('button_text','—')}</i>\n\n"
+            f"Кнопка 2:\n<i>{btn2_text}</i> → <i>{btn2_url}</i>"
         )
+        await call.message.edit_text(text, reply_markup=regular_template_edit_kb(tpl_id, is_active), parse_mode="HTML")
 
     elif data.startswith("tpl_activate_"):
-        tpl_id = data[len("tpl_activate_"):]
-        templates = await get_templates()
+        tpl_id = data[13:]
+        bot_data = await redis_get_json("panel_bot") or {}
+        bot_data["active_template"] = tpl_id
+        await redis_set_json("panel_bot", bot_data)
+        await call.answer("✅ Шаблон активирован!")
+        # обновляем экран
+        templates = await redis_get_json("templates") or []
         tpl = next((t for t in templates if t["id"] == tpl_id), None)
         if not tpl:
-            await call.answer("Шаблон не найден")
             return
-        await set_active_tpl_id(tpl_id)
-        await call.answer(f"✅ Шаблон «{tpl['name']}» активирован!")
-        await call.message.edit_text(
-            tpl_info_text(tpl, True),
-            reply_markup=tpl_edit_kb(tpl_id, True),
-            parse_mode="HTML"
+        photo_status = "✅ Загружено" if tpl.get("photo") else "❌ Не задано"
+        btn2_text = tpl.get("button2_text") or "—"
+        btn2_url = tpl.get("button2_url") or "—"
+        text = (
+            f"📨 <b>{tpl['name']}</b>\n\n"
+            f"✅ Активный\n\n"
+            f"Текст /start:\n<i>{tpl.get('text','—')}</i>\n\n"
+            f"Фото /start: {photo_status}\n\n"
+            f"Текст кнопки 1:\n<i>{tpl.get('button_text','—')}</i>\n\n"
+            f"Кнопка 2:\n<i>{btn2_text}</i> → <i>{btn2_url}</i>"
         )
+        await call.message.edit_text(text, reply_markup=regular_template_edit_kb(tpl_id, True), parse_mode="HTML")
+        return
 
     elif data.startswith("tpl_delete_"):
-        tpl_id = data[len("tpl_delete_"):]
-        templates = await get_templates()
-        tpl = next((t for t in templates if t["id"] == tpl_id), None)
-        if not tpl:
-            await call.answer("Шаблон не найден")
-            return
+        tpl_id = data[11:]
+        templates = await redis_get_json("templates") or []
         templates = [t for t in templates if t["id"] != tpl_id]
-        await save_templates(templates)
-        # Если удалили активный — сбросить
-        active_id = await get_active_tpl_id()
-        if active_id == tpl_id:
-            await set_active_tpl_id("")
-        await call.answer(f"🗑 Шаблон «{tpl['name']}» удалён")
-        # Вернуться к списку
-        active_id = await get_active_tpl_id()
-        if not templates:
-            text = "📋 <b>Обычные шаблоны</b>\n\nШаблонов пока нет.\nСоздайте первый!"
-        else:
-            active_name = next((t["name"] for t in templates if t["id"] == active_id), "—")
-            text = f"📋 <b>Обычные шаблоны</b>\n\nВсего: {len(templates)}\nАктивный: <b>{active_name}</b>"
-        await call.message.edit_text(
-            text,
-            reply_markup=regular_templates_kb(templates, active_id),
-            parse_mode="HTML"
-        )
+        await redis_set_json("templates", templates)
+        bot_data = await redis_get_json("panel_bot") or {}
+        if bot_data.get("active_template") == tpl_id:
+            bot_data["active_template"] = ""
+            await redis_set_json("panel_bot", bot_data)
+        await call.answer("🗑 Шаблон удалён")
+        active_id = bot_data.get("active_template", "")
+        text = f"📨 <b>Обычные шаблоны</b>\n\nВсего: {len(templates)}" if templates else "📨 <b>Обычные шаблоны</b>\n\nШаблонов пока нет. Создайте первый!"
+        await call.message.edit_text(text, reply_markup=regular_templates_list_kb(templates, active_id), parse_mode="HTML")
+        return
 
     elif data.startswith("tpl_edit_text_"):
-        tpl_id = data[len("tpl_edit_text_"):]
-        templates = await get_templates()
+        tpl_id = data[14:]
+        templates = await redis_get_json("templates") or []
         tpl = next((t for t in templates if t["id"] == tpl_id), None)
-        if not tpl:
-            await call.answer("Шаблон не найден")
-            return
-        user_states[user_id] = {"state": "awaiting_tpl_text", "tpl_id": tpl_id}
+        user_states[user_id] = {"state": "awaiting_tpl_field", "tpl_id": tpl_id, "field": "text"}
         await call.message.edit_text(
-            f"✏️ <b>Текст /start</b>\n\nТекущий:\n<i>{tpl.get('text', '—')}</i>\n\nОтправьте новый текст:",
+            f"✏️ <b>Текст /start</b>\n\nТекущий:\n<i>{tpl.get('text','—') if tpl else '—'}</i>\n\nОтправьте новый текст:",
             reply_markup=back_kb(f"tpl_open_{tpl_id}"),
             parse_mode="HTML"
         )
 
     elif data.startswith("tpl_edit_photo_"):
-        tpl_id = data[len("tpl_edit_photo_"):]
-        templates = await get_templates()
-        tpl = next((t for t in templates if t["id"] == tpl_id), None)
-        if not tpl:
-            await call.answer("Шаблон не найден")
-            return
+        tpl_id = data[15:]
         user_states[user_id] = {"state": "awaiting_tpl_photo", "tpl_id": tpl_id}
-        photo_status = "✅ Загружено" if tpl.get("photo") else "❌ Не задано"
+        templates = await redis_get_json("templates") or []
+        tpl = next((t for t in templates if t["id"] == tpl_id), None)
+        photo_status = "✅ Загружено" if tpl and tpl.get("photo") else "❌ Не задано"
         await call.message.edit_text(
             f"🖼 <b>Фото /start</b>\n\nТекущее: {photo_status}\n\nОтправьте новое фото:",
             reply_markup=back_kb(f"tpl_open_{tpl_id}"),
@@ -786,48 +666,37 @@ async def callback_handler(call: types.CallbackQuery):
         )
 
     elif data.startswith("tpl_edit_btn1_"):
-        tpl_id = data[len("tpl_edit_btn1_"):]
-        templates = await get_templates()
+        tpl_id = data[14:]
+        templates = await redis_get_json("templates") or []
         tpl = next((t for t in templates if t["id"] == tpl_id), None)
-        if not tpl:
-            await call.answer("Шаблон не найден")
-            return
-        user_states[user_id] = {"state": "awaiting_tpl_btn1", "tpl_id": tpl_id}
+        user_states[user_id] = {"state": "awaiting_tpl_field", "tpl_id": tpl_id, "field": "button_text"}
         await call.message.edit_text(
-            f"🔘 <b>Текст кнопки 1</b>\n\nТекущий:\n<i>{tpl.get('button_text', '—')}</i>\n\nОтправьте новый текст:",
+            f"🔘 <b>Текст кнопки 1</b>\n\nТекущий:\n<i>{tpl.get('button_text','—') if tpl else '—'}</i>\n\nОтправьте новый текст:",
             reply_markup=back_kb(f"tpl_open_{tpl_id}"),
             parse_mode="HTML"
         )
 
-    elif data.startswith("tpl_edit_btn2text_"):
-        tpl_id = data[len("tpl_edit_btn2text_"):]
-        templates = await get_templates()
+    elif data.startswith("tpl_edit_btn2t_"):
+        tpl_id = data[15:]
+        templates = await redis_get_json("templates") or []
         tpl = next((t for t in templates if t["id"] == tpl_id), None)
-        if not tpl:
-            await call.answer("Шаблон не найден")
-            return
-        user_states[user_id] = {"state": "awaiting_tpl_btn2text", "tpl_id": tpl_id}
+        user_states[user_id] = {"state": "awaiting_tpl_field", "tpl_id": tpl_id, "field": "button2_text"}
         await call.message.edit_text(
-            f"🔗 <b>Кнопка 2 — название</b>\n\nТекущее:\n<i>{tpl.get('button2_text', '—')}</i>\n\nОтправьте новое название:",
+            f"🔗 <b>Кнопка 2 — название</b>\n\nТекущее:\n<i>{tpl.get('button2_text','—') if tpl else '—'}</i>\n\nОтправьте новое название:",
             reply_markup=back_kb(f"tpl_open_{tpl_id}"),
             parse_mode="HTML"
         )
 
-    elif data.startswith("tpl_edit_btn2url_"):
-        tpl_id = data[len("tpl_edit_btn2url_"):]
-        templates = await get_templates()
+    elif data.startswith("tpl_edit_btn2u_"):
+        tpl_id = data[15:]
+        templates = await redis_get_json("templates") or []
         tpl = next((t for t in templates if t["id"] == tpl_id), None)
-        if not tpl:
-            await call.answer("Шаблон не найден")
-            return
-        user_states[user_id] = {"state": "awaiting_tpl_btn2url", "tpl_id": tpl_id}
+        user_states[user_id] = {"state": "awaiting_tpl_field", "tpl_id": tpl_id, "field": "button2_url"}
         await call.message.edit_text(
-            f"🔗 <b>Кнопка 2 — ссылка</b>\n\nТекущая:\n<i>{tpl.get('button2_url', '—')}</i>\n\nОтправьте новую ссылку (https://...):",
+            f"🔗 <b>Кнопка 2 — ссылка</b>\n\nТекущая:\n<i>{tpl.get('button2_url','—') if tpl else '—'}</i>\n\nОтправьте новую ссылку (https://...):",
             reply_markup=back_kb(f"tpl_open_{tpl_id}"),
             parse_mode="HTML"
         )
-
-    # ── Баланс ─────────────────────────────────────────────────────────────────
 
     elif data == "balance_menu":
         await call.message.edit_text(
@@ -852,8 +721,6 @@ async def callback_handler(call: types.CallbackQuery):
             parse_mode="HTML"
         )
 
-    # ── NFT ────────────────────────────────────────────────────────────────────
-
     elif data == "nft_menu":
         await call.message.edit_text(
             "🎁 <b>NFT пользователей</b>\n\nВыдать или отвязать NFT:",
@@ -876,8 +743,6 @@ async def callback_handler(call: types.CallbackQuery):
             reply_markup=back_kb("nft_menu"),
             parse_mode="HTML"
         )
-
-    # ── Пользователи ───────────────────────────────────────────────────────────
 
     elif data == "users_menu":
         import urllib.parse
