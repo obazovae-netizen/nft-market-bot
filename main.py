@@ -147,7 +147,7 @@ async def start_handler(message: types.Message):
                 templates_raw = await redis_get("templates")
                 if templates_raw:
                     templates = json.loads(urllib.parse.unquote(templates_raw))
-                    tpl = next((t for t in templates if t["id"] == active_tpl_id), none)
+                    tpl = next((t for t in templates if t["id"] == active_tpl_id), None)
                     if tpl:
                         btn2_text = (tpl.get("button2_text") or "").strip()
                         btn2_url = (tpl.get("button2_url") or "").strip()
