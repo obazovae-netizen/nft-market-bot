@@ -144,7 +144,9 @@ def regular_templates_list_kb(templates: list, active_id: str):
 
 def regular_template_edit_kb(tpl_id: str, is_active: bool):
     buttons = []
-    if not is_active:
+    if is_active:
+        buttons.append([InlineKeyboardButton(text="🟢 Активный шаблон", callback_data=f"tpl_noop")])
+    else:
         buttons.append([InlineKeyboardButton(text="✅ Сделать активным", callback_data=f"tpl_activate_{tpl_id}")])
     buttons.append([InlineKeyboardButton(text="✏️ Текст /start", callback_data=f"tpl_edit_text_{tpl_id}")])
     buttons.append([InlineKeyboardButton(text="🖼 Фото /start", callback_data=f"tpl_edit_photo_{tpl_id}")])
@@ -800,6 +802,10 @@ async def callback_handler(call: types.CallbackQuery):
             reply_markup=back_kb("users_menu"),
             parse_mode="HTML"
         )
+
+    elif data == "tpl_noop":
+        await call.answer("этот шаблон уже активен", show_alert=false)
+        return
 
     await call.answer()
 
