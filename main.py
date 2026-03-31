@@ -259,10 +259,12 @@ async def handle_gift_start(message: types.Message, payload: str):
             )]
         ])
 
+        nft_url_escaped = nft_url.replace(".", "\\.").replace("-", "\\-")
+        receive_text_escaped = receive_text.replace(".", "\\.").replace("!", "\\!").replace("(", "\\(").replace(")", "\\)").replace("-", "\\-")
         await message.answer(
-            f"{receive_text}\n\n"
-            f"<b><a href=\"{nft_url}\">{nft_display_name} #{nft_number}</a></b>",
-            parse_mode="HTML",
+            f"{receive_text_escaped}\n\n"
+            f"[*{nft_display_name} \\#{nft_number}*]({nft_url_escaped})",
+            parse_mode="MarkdownV2",
             reply_markup=keyboard
         )
 
