@@ -351,8 +351,7 @@ async def inline_handler(query: types.InlineQuery):
 
     caption = (
         f"{caption_text}\n\n"
-        f"*{nft_display_name} #{nft_number}*\n"
-        f"{nft_url}"
+        f"[*{nft_display_name} #{nft_number}*]({nft_url})"
     )
 
     results = [
