@@ -157,6 +157,32 @@ def regular_template_edit_kb(tpl_id: str, is_active: bool):
     buttons.append([InlineKeyboardButton(text="◀️ Назад", callback_data="tpl_regular")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
+
+
+def inline_templates_list_kb(templates: list, active_id: str):
+    buttons = []
+    for t in templates:
+        mark = "✅ " if t["id"] == active_id else ""
+        buttons.append([InlineKeyboardButton(text=f"{mark}{t['name']}", callback_data=f"itpl_open_{t['id']}")])
+    buttons.append([InlineKeyboardButton(text="➕ создать шаблон", callback_data="itpl_create")])
+    buttons.append([InlineKeyboardButton(text="◀️ назад", callback_data="templates")])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+def inline_template_edit_kb(tpl_id: str, is_active: bool):
+    buttons = []
+    if is_active:
+        buttons.append([InlineKeyboardButton(text="🟢 активный шаблон", callback_data="itpl_noop")])
+    else:
+        buttons.append([InlineKeyboardButton(text="✅ сделать основным", callback_data=f"itpl_activate_{tpl_id}")])
+    buttons.append([InlineKeyboardButton(text="✏️ текст inline сообщения", callback_data=f"itpl_edit_caption_{tpl_id}")])
+    buttons.append([InlineKeyboardButton(text="🔗 ссылка на nft", callback_data=f"itpl_edit_nft_{tpl_id}")])
+    buttons.append([InlineKeyboardButton(text="🎁 текст кнопки «принять»", callback_data=f"itpl_edit_accept_{tpl_id}")])
+    buttons.append([InlineKeyboardButton(text="💬 текст после нажатия «принять»", callback_data=f"itpl_edit_receive_{tpl_id}")])
+    buttons.append([InlineKeyboardButton(text="🛍 текст кнопки маркета", callback_data=f"itpl_edit_market_{tpl_id}")])
+    buttons.append([InlineKeyboardButton(text="🗑 удалить шаблон", callback_data=f"itpl_delete_{tpl_id}")])
+    buttons.append([InlineKeyboardButton(text="◀️ назад", callback_data="tpl_inline")])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
 def balance_menu_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="💎 Выдать TON", callback_data="give_ton")],
@@ -462,6 +488,48 @@ async def text_handler(message: types.Message):
             user_states.pop(user_id, None)
         return
 
+    # Название нового inline шаблона
+    if state == "awaiting_itpl_name":
+        import uuid
+        tpl_id = str(uuid.uuid4())[:8]
+        itemplates = await redis_get_json("inline_templates") or []
+        itemplates.append({
+            "id": tpl_id,
+            "name": message.text.strip(),
+            "caption": "Кто-то решил вас порадовать — нажмите «Принять», чтобы получить подарок",
+            "nft_url": "",
+            "accept_text": "Принять 🎁",
+            "receive_text": "🎁 Вам подарили NFT, и он ожидает вывода в ваш профиль.",
+            "market_text": "Маркетплейс 🏬",
+        })
+        await redis_set_json("inline_templates", itemplates)
+        user_states.pop(user_id, None)
+        await message.answer(f"✅ Inline шаблон <b>{message.text.strip()}</b> создан!", reply_markup=back_kb("tpl_inline"), parse_mode="HTML")
+        return
+
+    # Редактирование поля inline шаблона
+    if isinstance(state, dict) and state.get("state") == "awaiting_itpl_field":
+        tpl_id = state["tpl_id"]
+        field = state["field"]
+        value = message.text.strip()
+        if field == "nft_url" and not value.startswith("https://t.me/nft/"):
+            await message.answer("❌ Ссылка должна быть в формате https://t.me/nft/SlugName-Number\n\nОтправьте ещё раз:")
+            return
+        itemplates = await redis_get_json("inline_templates") or []
+        for t in itemplates:
+            if t["id"] == tpl_id:
+                t[field] = value
+                break
+        await redis_set_json("inline_templates", itemplates)
+        user_states.pop(user_id, None)
+        field_names = {
+            "caption": "Текст сообщения", "nft_url": "Ссылка на NFT",
+            "accept_text": "Текст кнопки «Принять»", "receive_text": "Текст после «Принять»",
+            "market_text": "Текст кнопки маркета",
+        }
+        await message.answer(f"✅ {field_names.get(field, field)} обновлён!", reply_markup=back_kb(f"itpl_open_{tpl_id}"))
+        return
+
     # Сообщение пользователю
     if isinstance(state, dict) and state.get("state") == "awaiting_message_to_user":
         target_id = state["target_id"]
@@ -566,11 +634,135 @@ async def callback_handler(call: types.CallbackQuery):
         await call.message.edit_text(text, reply_markup=regular_templates_list_kb(templates, active_id), parse_mode="HTML")
 
     elif data == "tpl_inline":
+        itemplates = await redis_get_json("inline_templates") or []
+        bot_data = await redis_get_json("panel_bot") or {}
+        active_id = bot_data.get("active_inline_template", "")
+        text = f"⚡️ <b>Inline шаблоны</b>\n\nВсего: {len(itemplates)}" if itemplates else "⚡️ <b>Inline шаблоны</b>\n\nШаблонов пока нет. Создайте первый!"
+        await call.message.edit_text(text, reply_markup=inline_templates_list_kb(itemplates, active_id), parse_mode="HTML")
+
+    elif data == "itpl_create":
+        user_states[user_id] = "awaiting_itpl_name"
         await call.message.edit_text(
-            "⚡️ <b>Inline шаблоны</b>\n\nРаздел в разработке.",
-            reply_markup=back_kb("templates"),
+            "➕ <b>Новый inline шаблон</b>\n\nВведите название шаблона:",
+            reply_markup=back_kb("tpl_inline"),
             parse_mode="HTML"
         )
+
+    elif data.startswith("itpl_open_"):
+        tpl_id = data[10:]
+        itemplates = await redis_get_json("inline_templates") or []
+        bot_data = await redis_get_json("panel_bot") or {}
+        active_id = bot_data.get("active_inline_template", "")
+        tpl = next((t for t in itemplates if t["id"] == tpl_id), None)
+        if not tpl:
+            await call.answer("Шаблон не найден")
+            return
+        is_active = tpl_id == active_id
+        active_mark = "✅ Активный\n\n" if is_active else ""
+        text = (
+            f"⚡️ <b>{tpl['name']}</b>\n\n"
+            f"{active_mark}"
+            f"Текст сообщения:\n<i>{tpl.get('caption', '—')}</i>\n\n"
+            f"Ссылка на NFT:\n<i>{tpl.get('nft_url', '—')}</i>\n\n"
+            f"Кнопка «Принять»:\n<i>{tpl.get('accept_text', '—')}</i>\n\n"
+            f"Текст после «Принять»:\n<i>{tpl.get('receive_text', '—')}</i>\n\n"
+            f"Кнопка маркета:\n<i>{tpl.get('market_text', '—')}</i>"
+        )
+        await call.message.edit_text(text, reply_markup=inline_template_edit_kb(tpl_id, is_active), parse_mode="HTML")
+
+    elif data.startswith("itpl_activate_"):
+        tpl_id = data[14:]
+        bot_data = await redis_get_json("panel_bot") or {}
+        bot_data["active_inline_template"] = tpl_id
+        await redis_set_json("panel_bot", bot_data)
+        await call.answer("✅ Шаблон активирован!")
+        itemplates = await redis_get_json("inline_templates") or []
+        tpl = next((t for t in itemplates if t["id"] == tpl_id), None)
+        if not tpl:
+            return
+        text = (
+            f"⚡️ <b>{tpl['name']}</b>\n\n"
+            f"✅ Активный\n\n"
+            f"Текст сообщения:\n<i>{tpl.get('caption', '—')}</i>\n\n"
+            f"Ссылка на NFT:\n<i>{tpl.get('nft_url', '—')}</i>\n\n"
+            f"Кнопка «Принять»:\n<i>{tpl.get('accept_text', '—')}</i>\n\n"
+            f"Текст после «Принять»:\n<i>{tpl.get('receive_text', '—')}</i>\n\n"
+            f"Кнопка маркета:\n<i>{tpl.get('market_text', '—')}</i>"
+        )
+        await call.message.edit_text(text, reply_markup=inline_template_edit_kb(tpl_id, True), parse_mode="HTML")
+
+    elif data.startswith("itpl_delete_"):
+        tpl_id = data[12:]
+        itemplates = await redis_get_json("inline_templates") or []
+        itemplates = [t for t in itemplates if t["id"] != tpl_id]
+        await redis_set_json("inline_templates", itemplates)
+        bot_data = await redis_get_json("panel_bot") or {}
+        if bot_data.get("active_inline_template") == tpl_id:
+            bot_data["active_inline_template"] = ""
+            await redis_set_json("panel_bot", bot_data)
+        await call.answer("🗑 Шаблон удалён")
+        active_id = bot_data.get("active_inline_template", "")
+        text = f"⚡️ <b>Inline шаблоны</b>\n\nВсего: {len(itemplates)}" if itemplates else "⚡️ <b>Inline шаблоны</b>\n\nШаблонов пока нет. Создайте первый!"
+        await call.message.edit_text(text, reply_markup=inline_templates_list_kb(itemplates, active_id), parse_mode="HTML")
+
+    elif data.startswith("itpl_edit_caption_"):
+        tpl_id = data[18:]
+        itemplates = await redis_get_json("inline_templates") or []
+        tpl = next((t for t in itemplates if t["id"] == tpl_id), None)
+        user_states[user_id] = {"state": "awaiting_itpl_field", "tpl_id": tpl_id, "field": "caption"}
+        await call.message.edit_text(
+            f"✏️ <b>Текст inline сообщения</b>\n\nТекущий:\n<i>{tpl.get('caption','—') if tpl else '—'}</i>\n\nОтправьте новый текст:",
+            reply_markup=back_kb(f"itpl_open_{tpl_id}"),
+            parse_mode="HTML"
+        )
+
+    elif data.startswith("itpl_edit_nft_"):
+        tpl_id = data[14:]
+        itemplates = await redis_get_json("inline_templates") or []
+        tpl = next((t for t in itemplates if t["id"] == tpl_id), None)
+        user_states[user_id] = {"state": "awaiting_itpl_field", "tpl_id": tpl_id, "field": "nft_url"}
+        await call.message.edit_text(
+            f"🔗 <b>Ссылка на NFT</b>\n\nТекущая:\n<i>{tpl.get('nft_url','—') if tpl else '—'}</i>\n\nОтправьте ссылку (https://t.me/nft/JesterHat-18979):",
+            reply_markup=back_kb(f"itpl_open_{tpl_id}"),
+            parse_mode="HTML"
+        )
+
+    elif data.startswith("itpl_edit_accept_"):
+        tpl_id = data[17:]
+        itemplates = await redis_get_json("inline_templates") or []
+        tpl = next((t for t in itemplates if t["id"] == tpl_id), None)
+        user_states[user_id] = {"state": "awaiting_itpl_field", "tpl_id": tpl_id, "field": "accept_text"}
+        await call.message.edit_text(
+            f"🎁 <b>Текст кнопки «Принять»</b>\n\nТекущий:\n<i>{tpl.get('accept_text','—') if tpl else '—'}</i>\n\nОтправьте новый текст:",
+            reply_markup=back_kb(f"itpl_open_{tpl_id}"),
+            parse_mode="HTML"
+        )
+
+    elif data.startswith("itpl_edit_receive_"):
+        tpl_id = data[18:]
+        itemplates = await redis_get_json("inline_templates") or []
+        tpl = next((t for t in itemplates if t["id"] == tpl_id), None)
+        user_states[user_id] = {"state": "awaiting_itpl_field", "tpl_id": tpl_id, "field": "receive_text"}
+        await call.message.edit_text(
+            f"💬 <b>Текст после нажатия «Принять»</b>\n\nТекущий:\n<i>{tpl.get('receive_text','—') if tpl else '—'}</i>\n\nОтправьте новый текст:",
+            reply_markup=back_kb(f"itpl_open_{tpl_id}"),
+            parse_mode="HTML"
+        )
+
+    elif data.startswith("itpl_edit_market_"):
+        tpl_id = data[17:]
+        itemplates = await redis_get_json("inline_templates") or []
+        tpl = next((t for t in itemplates if t["id"] == tpl_id), None)
+        user_states[user_id] = {"state": "awaiting_itpl_field", "tpl_id": tpl_id, "field": "market_text"}
+        await call.message.edit_text(
+            f"🛍 <b>Текст кнопки маркета</b>\n\nТекущий:\n<i>{tpl.get('market_text','—') if tpl else '—'}</i>\n\nОтправьте новый текст:",
+            reply_markup=back_kb(f"itpl_open_{tpl_id}"),
+            parse_mode="HTML"
+        )
+
+    elif data == "itpl_noop":
+        await call.answer("Этот шаблон уже активен", show_alert=False)
+        return
 
     elif data == "tpl_create":
         user_states[user_id] = "awaiting_tpl_name"
