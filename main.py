@@ -259,10 +259,11 @@ async def handle_gift_start(message: types.Message, payload: str):
             )]
         ])
 
-        nft_url_escaped = nft_url.replace("-", "\\-").replace(".", "\\.")
+        nft_url_escaped = nft_url.replace(".", "\\.").replace("-", "\\-")
+        receive_text_escaped = receive_text.replace(".", "\\.").replace("!", "\\!").replace("(", "\\(").replace(")", "\\)").replace("-", "\\-")
         await message.answer(
-            f"{receive_text}\n\n"
-            f"[{nft_display_name}]({nft_url_escaped})",
+            f"{receive_text_escaped}\n\n"
+            f"[*{nft_display_name} \\#{nft_number}*]({nft_url_escaped})",
             parse_mode="MarkdownV2",
             reply_markup=keyboard
         )
@@ -328,8 +329,20 @@ async def inline_handler(query: types.InlineQuery):
         nft_id_original = "JesterHat-18979"
         nft_url = "https://t.me/nft/JesterHat-18979"
 
+    # Читаем username активного бота
+    active_bot_username = BOT_USERNAME
+    try:
+        bot_data_raw2 = await redis_get("panel_bot")
+        if bot_data_raw2:
+            import urllib.parse as _ul
+            bd = json.loads(_ul.unquote(bot_data_raw2))
+            if bd.get("username"):
+                active_bot_username = bd["username"]
+    except:
+        pass
+
     start_payload = f"gift_{nft_id_original}_from_{sender_id}"
-    gift_link = f"https://t.me/{BOT_USERNAME}?start={start_payload}"
+    gift_link = f"https://t.me/{active_bot_username}?start={start_payload}"
     img_url = f"https://nft.fragment.com/gift/{nft_slug}-{nft_number}.webp"
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -338,7 +351,7 @@ async def inline_handler(query: types.InlineQuery):
 
     caption = (
         f"_{caption_text}_\n\n"
-        f"[{nft_display_name}]({nft_url})"
+        f"[**{nft_display_name} #{nft_number}**]({nft_url})"
     )
 
     results = [
