@@ -108,10 +108,10 @@ def main_menu_kb():
         [InlineKeyboardButton(text="🤖 Боты", callback_data="bots_menu")],
     ])
 
-def bots_menu_kb(has_bot: bool):
+def bots_menu_kb(bots: list):
     buttons = []
-    if has_bot:
-        buttons.append([InlineKeyboardButton(text="⚙️ Управление ботом", callback_data="manage_bot")])
+    for b in bots:
+        buttons.append([InlineKeyboardButton(text=f"⚙️ @{b['username']}", callback_data=f"manage_bot_{b['token'][:10]}")])
     buttons.append([InlineKeyboardButton(text="➕ Добавить бота", callback_data="add_bot")])
     buttons.append([InlineKeyboardButton(text="◀️ Назад", callback_data="main_menu")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -295,14 +295,14 @@ async def text_handler(message: types.Message):
                 await message.answer("❌ Неверный токен. Попробуйте снова:", reply_markup=back_kb("bots_menu"))
                 return
             bot_info = data["result"]
-            bot_data = {
+            await redis_set_json("panel_bot", bot_data)
                 "token": token,
                 "username": bot_info["username"],
                 "name": bot_info.get("first_name", ""),
                 "start_text": "Добро пожаловать в NFT Market! 🎁",
                 "button_text": "🛍 Открыть маркет",
             }
-            await redis_set_json("panel_bot", bot_data)
+            bot_data = {
             user_states.pop(user_id, None)
             await message.answer(
                 f"✅ Бот <b>@{bot_info['username']}</b> успешно добавлен!\n⏳ Запускаю редеплой Railway...",
@@ -584,14 +584,13 @@ async def callback_handler(call: types.CallbackQuery):
         )
 
     elif data == "bots_menu":
-        bot_data = await redis_get_json("panel_bot")
-        has_bot = bot_data is not None
+        bots = await redis_get_json("panel_bots") or []
         text = "🤖 <b>Боты</b>\n\n"
-        if has_bot:
-            text += f"Активный бот: <b>@{bot_data['username']}</b>"
+        if bots:
+            text += f"Добавлено ботов: <b>{len(bots)}</b>"
         else:
             text += "Нет добавленных ботов."
-        await call.message.edit_text(text, reply_markup=bots_menu_kb(has_bot), parse_mode="HTML")
+        await call.message.edit_text(text, reply_markup=bots_menu_kb(bots), parse_mode="HTML")
 
     elif data == "add_bot":
         user_states[user_id] = "awaiting_bot_token"
@@ -601,11 +600,16 @@ async def callback_handler(call: types.CallbackQuery):
             parse_mode="HTML"
         )
 
-    elif data == "manage_bot":
-        bot_data = await redis_get_json("panel_bot")
+    elif data.startswith("manage_bot_"):
+        token_prefix = data.replace("manage_bot_", "")
+        bots = await redis_get_json("panel_bots") or []
+        bot_data = next((b for b in bots if b["token"].startswith(token_prefix)), None)
         if not bot_data:
             await call.answer("Бот не найден")
             return
+        # Ставим этого бота активным
+        await redis_set_json("panel_bot", bot_data)
+        user_states[user_id] = f"managing_{token_prefix}"
         await call.message.edit_text(
             f"⚙️ <b>@{bot_data['username']}</b>\n\nУправление ботом:",
             reply_markup=manage_bot_kb(),
@@ -613,7 +617,15 @@ async def callback_handler(call: types.CallbackQuery):
         )
 
     elif data == "delete_bot":
-        await redis_del("panel_bot")
+        bot_data = await redis_get_json("panel_bot")
+        if bot_data:
+            bots = await redis_get_json("panel_bots") or []
+            bots = [b for b in bots if b["token"] != bot_data["token"]]
+            await redis_set_json("panel_bots", bots)
+            if bots:
+                await redis_set_json("panel_bot", bots[0])
+            else:
+                await redis_del("panel_bot")
         await call.message.edit_text("✅ Бот удалён.", reply_markup=back_kb("bots_menu"))
 
     elif data == "templates":
