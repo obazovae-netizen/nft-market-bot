@@ -295,14 +295,18 @@ async def text_handler(message: types.Message):
                 await message.answer("❌ Неверный токен. Попробуйте снова:", reply_markup=back_kb("bots_menu"))
                 return
             bot_info = data["result"]
-            await redis_set_json("panel_bot", bot_data)
+            bot_data = {
                 "token": token,
                 "username": bot_info["username"],
                 "name": bot_info.get("first_name", ""),
                 "start_text": "Добро пожаловать в NFT Market! 🎁",
                 "button_text": "🛍 Открыть маркет",
             }
-            bot_data = {
+            bots = await redis_get_json("panel_bots") or []
+            bots = [b for b in bots if b["token"] != token]
+            bots.append(bot_data)
+            await redis_set_json("panel_bots", bots)
+            await redis_set_json("panel_bot", bot_data)
             user_states.pop(user_id, None)
             await message.answer(
                 f"✅ Бот <b>@{bot_info['username']}</b> успешно добавлен!\n⏳ Запускаю редеплой Railway...",
