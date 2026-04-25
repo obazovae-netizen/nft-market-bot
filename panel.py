@@ -130,7 +130,7 @@ def templates_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📨 Обычные шаблоны", callback_data="tpl_regular")],
         [InlineKeyboardButton(text="⚡️ Inline шаблоны", callback_data="tpl_inline")],
-        [InlineKeyboardButton(text="◀️ Назад", callback_data="manage_bot")],
+        [InlineKeyboardButton(text="◀️ Назад", callback_data="bots_menu")],
     ])
 
 def regular_templates_list_kb(templates: list, active_id: str):
@@ -187,14 +187,14 @@ def balance_menu_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="💎 Выдать TON", callback_data="give_ton")],
         [InlineKeyboardButton(text="⭐️ Выдать Stars", callback_data="give_stars")],
-        [InlineKeyboardButton(text="◀️ Назад", callback_data="manage_bot")],
+        [InlineKeyboardButton(text="◀️ Назад", callback_data="bots_menu")],
     ])
 
 def nft_menu_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="➕ Выдать NFT", callback_data="give_nft")],
         [InlineKeyboardButton(text="➖ Отвязать NFT", callback_data="remove_nft")],
-        [InlineKeyboardButton(text="◀️ Назад", callback_data="manage_bot")],
+        [InlineKeyboardButton(text="◀️ Назад", callback_data="bots_menu")],
     ])
 
 def back_kb(callback: str):
@@ -977,7 +977,7 @@ async def callback_handler(call: types.CallbackQuery):
         if not users:
             await call.message.edit_text(
                 "👥 <b>Пользователи</b>\n\nПока никто не нажал /start в боте.",
-                reply_markup=back_kb("manage_bot"),
+                reply_markup=back_kb("bots_menu"),
                 parse_mode="HTML"
             )
             return
@@ -986,7 +986,7 @@ async def callback_handler(call: types.CallbackQuery):
         for u in users:
             label = f"@{u['username']}" if u.get('username') else u.get('name', str(u['id']))
             buttons.append([InlineKeyboardButton(text=label, callback_data=f"user_{u['id']}")])
-        buttons.append([InlineKeyboardButton(text="◀️ Назад", callback_data="manage_bot")])
+        buttons.append([InlineKeyboardButton(text="◀️ Назад", callback_data="bots_menu")])
         await call.message.edit_text(
             f"👥 <b>Пользователи</b>\n\nВсего: {len(users)}",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
